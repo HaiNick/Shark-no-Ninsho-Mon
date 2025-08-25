@@ -10,7 +10,7 @@ A minimal, production-ready setup for exposing web applications to the internet 
 
 ```bash
 # 1. Clone and setup
-git clone <your-repo>
+git clone https://github.com/HaiNick/Shark-no-Ninsho-Mon
 cd Shark-no-Ninsho-Mon
 
 # 2. Configure environment
