@@ -1,301 +1,295 @@
-# public url + google login via tailscale funnel + oauth2-proxy
+# Shark-no-Ninsho-Mon
 
-minimal, repeatable doc for future you (works on your Pi 5 / Debian 12)
+**Secure Public Web Apps with Google OAuth via Tailscale Funnel**
 
-## 0. prerequisites
+A minimal, production-ready setup for exposing web applications to the internet with Google authentication, using Tailscale Funnel and oauth2-proxy. Perfect for self-hosted apps that need public access with authentication.
 
-* tailscale installed, logged in, and Funnel enabled for your tailnet.
-* docker and docker compose installed.
-* you have a Google account to allow.
+---
 
-Sanity:
+## Quick Start
 
+```bash
+# 1. Clone and setup
+git clone <your-repo>
+cd Shark-no-Ninsho-Mon
+
+# 2. Configure environment
+cp .env.template .env
+# Edit .env with your values
+
+# 3. Setup allowed users
+# Edit emails.txt with allowed Google accounts
+
+# 4. Deploy
+docker compose up -d --build
+tailscale funnel 4180
+
+# 5. Access your app
+# https://your-host.your-tailnet.ts.net
+```
+
+---
+
+## Prerequisites
+
+Ensure you have these installed and configured:
+
+- [x] **Tailscale** - installed, logged in, with Funnel enabled
+- [x] **Docker & Docker Compose** - for containerized deployment  
+- [x] **Google Account** - for OAuth authentication
+
+**Verification Commands:**
 ```bash
 tailscale status
 docker --version
 docker compose version
 ```
 
-## 1. pick your public host
+---
 
-You will publish oauth2-proxy on localhost:4180 and let Funnel expose it as:
-
-```
-https://<your-host>.<your-tailnet>.ts.net
-```
-
-Example you used: `https://sharky.snowy-burbot.ts.net`
-
-Keep that exact host string handy.
-
-## 2. create Google OAuth client (one-time per host)
-
-Console path changes sometimes; gist stays the same.
-
-1. Open Google Cloud Console and select or create a project.
-2. Consent screen:
-
-   * User type: External.
-   * Fill basic fields.
-   * Scopes: only `openid`, `email`, `profile`.
-   * For private use, keep it in Testing and add your Gmail under Test users; or switch to In production later (still fine with basic scopes).
-3. Credentials -> Create credentials -> OAuth client ID
-
-   * Application type: Web application.
-   * Authorized redirect URI:
-     `https://<your-host>.<your-tailnet>.ts.net/oauth2/callback`
-
-Copy Client ID and Client Secret. You will not commit them.
-
-## 3. project layout
+## Architecture
 
 ```
-project-root/
-  emails.txt
-  docker-compose.yml
-  .env           # holds secrets, not committed
-  app/
-    Dockerfile
-    requirements.txt
-    app.py
+Internet Users
+      |
+[Tailscale Funnel] <- https://your-host.your-tailnet.ts.net
+      |
+[oauth2-proxy:4180] <- Google OAuth Authentication
+      |
+[Flask App:8000] <- Your Application (internal only)
 ```
 
-## 4. allowed users
+**Security Model:**
+- [LOCKED] All traffic goes through Google OAuth
+- [GLOBE] Only oauth2-proxy is exposed publicly (via Funnel)
+- [KEY] Flask app is internal-only (no direct internet access)
+- [MAIL] User access controlled by email whitelist
 
-Put the exact Google accounts (one per line):
+---
 
-```
-# file: emails.txt
-your.primary@gmail.com
-optional.second@gmail.com   # break-glass recommended
-```
+## Configuration
 
-## 5. secrets and config
+### 1. Google OAuth Setup
 
-Create `.env` (do not commit it):
+1. **Google Cloud Console** -> Create/Select Project
+2. **OAuth Consent Screen:**
+   - User Type: `External`
+   - Scopes: `openid`, `email`, `profile` only
+   - For testing: Add your Gmail to Test Users
+3. **Credentials** -> Create OAuth Client ID:
+   - Type: `Web Application`
+   - Redirect URI: `https://your-host.your-tailnet.ts.net/oauth2/callback`
+
+**Save:** Client ID & Client Secret (never commit these!)
+
+### 2. Environment Configuration
+
+Copy the template and fill in your values:
 
 ```bash
-# file: .env
-OAUTH2_PROXY_CLIENT_ID=copy-from-google
-OAUTH2_PROXY_CLIENT_SECRET=copy-from-google
-# 32 random bytes, base64. Generate with the command below and paste:
-OAUTH2_PROXY_COOKIE_SECRET=REPLACE_WITH_32BYTE_BASE64
-# public host used by Funnel
-FUNNEL_HOST=https://<your-host>.<your-tailnet>.ts.net
-FUNNEL_HOSTNAME=<your-host>.<your-tailnet>.ts.net
+cp .env.template .env
 ```
 
-Generate cookie secret:
-
+Required variables in `.env`:
 ```bash
+OAUTH2_PROXY_CLIENT_ID=your-google-client-id
+OAUTH2_PROXY_CLIENT_SECRET=your-google-client-secret
+OAUTH2_PROXY_COOKIE_SECRET=32-byte-base64-secret
+FUNNEL_HOST=https://your-host.your-tailnet.ts.net
+FUNNEL_HOSTNAME=your-host.your-tailnet.ts.net
+```
+
+**Generate Cookie Secret:**
+```bash
+# Linux/Mac
 head -c 32 /dev/urandom | base64
+
+# Windows PowerShell
+./setup.ps1  # Generates automatically
 ```
 
-## 6. docker-compose.yml
+### 3. User Access Control
 
-```yaml
-version: "3.8"
-
-services:
-  app:
-    build: ./app
-    expose:
-      - "8000"              # internal only; do not publish
-    restart: unless-stopped
-
-  oauth2-proxy:
-    image: quay.io/oauth2-proxy/oauth2-proxy:v7.6.0
-    ports:
-      - "127.0.0.1:4180:4180"  # Funnel proxies to this
-    env_file:
-      - ./.env
-    environment:
-      OAUTH2_PROXY_PROVIDER: google
-      OAUTH2_PROXY_SCOPE: "openid email profile"
-      OAUTH2_PROXY_REDIRECT_URL: "${FUNNEL_HOST}/oauth2/callback"
-      OAUTH2_PROXY_WHITELIST_DOMAINS: "${FUNNEL_HOSTNAME}"
-      OAUTH2_PROXY_UPSTREAMS: "http://app:8000"
-      OAUTH2_PROXY_HTTP_ADDRESS: "0.0.0.0:4180"
-      OAUTH2_PROXY_REVERSE_PROXY: "true"
-      OAUTH2_PROXY_PASS_USER_HEADERS: "true"
-      OAUTH2_PROXY_PREFER_EMAIL_TO_USER: "true"
-      OAUTH2_PROXY_SET_XAUTHREQUEST: "true"
-      OAUTH2_PROXY_AUTHENTICATED_EMAILS_FILE: "/etc/oauth2-proxy/emails.txt"
-      OAUTH2_PROXY_SKIP_PROVIDER_BUTTON: "true"
-      OAUTH2_PROXY_COOKIE_SECURE: "true"
-      OAUTH2_PROXY_COOKIE_SAMESITE: "lax"
-    volumes:
-      - ./emails.txt:/etc/oauth2-proxy/emails.txt:ro
-    depends_on:
-      - app
-    restart: unless-stopped
+Edit `emails.txt` with allowed Google accounts:
+```
+your.primary@gmail.com
+colleague@company.com
+# Add break-glass account recommended
 ```
 
-## 7. flask test app
+---
 
-Dockerfile:
+## Deployment
 
-```dockerfile
-# file: app/Dockerfile
-FROM python:3.11-slim
-ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1
-WORKDIR /app
-COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
-COPY app.py .
-CMD ["gunicorn", "-b", "0.0.0.0:8000", "-w", "2", "app:app"]
-```
-
-requirements.txt:
-
-```
-# file: app/requirements.txt
-flask==3.0.3
-gunicorn==22.0.0
-```
-
-app.py:
-
-```python
-# file: app/app.py
-from flask import Flask, request, jsonify
-app = Flask(__name__)
-
-def get_email():
-    return (request.headers.get("X-Forwarded-Email")
-            or request.headers.get("X-Auth-Request-Email")
-            or request.headers.get("X-Forwarded-User"))
-
-@app.route("/")
-def index():
-    email = get_email()
-    return f"""<html><body>
-      <h1>It works</h1>
-      <p>Authenticated as: {email}</p>
-      <p>See <a href="/api/whoami">/api/whoami</a> and <a href="/headers">/headers</a>.</p>
-    </body></html>"""
-
-@app.route("/api/whoami")
-def whoami():
-    return jsonify({
-        "email": get_email(),
-        "remote_addr": request.headers.get("X-Real-IP") or request.remote_addr,
-    })
-
-@app.route("/headers")
-def headers():
-    wanted = [
-        "X-Forwarded-Email","X-Forwarded-User","X-Auth-Request-Email",
-        "X-Forwarded-Proto","X-Forwarded-Host","X-Forwarded-Uri","X-Real-IP"
-    ]
-    return "<pre>" + "\n".join(f"{k}: {request.headers.get(k)}" for k in wanted) + "</pre>"
-```
-
-## 8. build and start
+### Start the Stack
 
 ```bash
+# Build and start services
 docker compose up -d --build
+
+# Check service status
 docker compose ps
 docker compose logs -f oauth2-proxy
 ```
 
-You should see oauth2-proxy listening on 0.0.0.0:4180 and loading emails.txt.
-
-## 9. publish with tailscale funnel
+### Enable Public Access
 
 ```bash
+# Start Tailscale Funnel
 tailscale funnel 4180
-# or keep it running in background:
-# tailscale funnel --bg 4180
+
+# Or run in background
+tailscale funnel --bg 4180
+
+# Verify setup
+tailscale funnel status
 ```
 
-CLI outputs your public URL. It should match `FUNNEL_HOST`.
+---
 
-## 10. verify
+## Testing & Verification
 
-Open:
+### Web Testing
+1. **Main App:** `https://your-host.your-tailnet.ts.net`
+   - Should redirect to Google login
+   - Sign in with allowed email
+   - See "It works" page with your email
 
-* `https://<your-host>.<your-tailnet>.ts.net` -> redirected to Google -> sign in with an email from emails.txt.
-* `https://<host>/api/whoami` -> JSON with your email.
-* `https://<host>/headers` -> sanity headers.
+2. **API Endpoints:**
+   - `https://your-host.your-tailnet.ts.net/api/whoami` - JSON user info
+   - `https://your-host.your-tailnet.ts.net/headers` - Authentication headers
 
-CLI checks:
-
+### CLI Verification
 ```bash
+# Check Funnel status
 tailscale funnel status
+
+# Verify port binding (Linux)
 ss -tulpen | grep 4180
+
+# Check container logs
+docker compose logs oauth2-proxy
+docker compose logs app
 ```
 
-## 11. stop and clean up
+---
 
-Turn off Funnel:
+## Stopping & Cleanup
 
+### Stop Public Access
 ```bash
+# Turn off Funnel
 tailscale funnel off
-# or: tailscale funnel 4180 off
+
+# Verify it's off
 tailscale funnel status
 ```
 
-Stop containers:
-
+### Stop Services
 ```bash
+# Stop containers (keep data)
+docker compose stop
+
+# Stop and remove containers
 docker compose down
-# or keep state but stop:
-# docker compose stop
-```
 
-Optional cleanup:
-
-```bash
+# Full cleanup (removes volumes & images)
 docker compose down --volumes --rmi local
 ```
 
-## 12. common failures and fast fixes
+---
 
-* redirect\_uri\_mismatch
+## Troubleshooting
 
-  * Google Console redirect must be exactly `https://<host>/oauth2/callback`.
-  * `OAUTH2_PROXY_REDIRECT_URL` must match it exactly.
-* authenticated but headers missing
+### Common Issues
 
-  * Ensure `OAUTH2_PROXY_PASS_USER_HEADERS=true` and `OAUTH2_PROXY_SET_XAUTHREQUEST=true`.
-  * In your app, read `X-Forwarded-User` as fallback.
-* bypass risk
+| Problem | Solution |
+|---------|----------|
+| `redirect_uri_mismatch` | Ensure Google Console redirect URI exactly matches `FUNNEL_HOST/oauth2/callback` |
+| Headers missing in app | Verify `OAUTH2_PROXY_PASS_USER_HEADERS=true` and `OAUTH2_PROXY_SET_XAUTHREQUEST=true` |
+| Bypass security risk | Never add `ports:` to app service - only `expose:` allowed |
+| 7-day re-consent | Switch OAuth consent screen from Testing to Production |
 
-  * Do not publish the app service. Only `expose: 8000` is allowed; no `ports:` on `app`.
-* testing-mode reconsent
+### Debug Commands
+```bash
+# Check oauth2-proxy logs
+docker compose logs -f oauth2-proxy
 
-  * External + Testing requires re-consent every 7 days for Test users. If that annoys you, set consent screen to In production while keeping scopes to `openid email profile`.
+# Test authentication headers
+curl -H "Cookie: $(curl -c - -b - -L https://your-host.your-tailnet.ts.net)" \
+     https://your-host.your-tailnet.ts.net/headers
 
-## 13. security notes
+# Verify container networking
+docker compose exec oauth2-proxy wget -qO- http://app:8000/headers
+```
 
-* Store secrets in `.env`, not in compose. Rotate Google Client Secret if you ever leak it.
-* Add a second allowed email in `emails.txt` as break-glass to avoid lockout.
-* Keep the upstream app private to your docker network; all public traffic must pass oauth2-proxy.
-* Consider basic app hardening: update images regularly, minimal scopes, logs review.
+---
 
-## 14. alternatives and when to use them
+## Security Best Practices
 
-* private only (no Internet): skip Funnel, use `tailscale serve` and Tailscale identity headers inside the tailnet.
-* many users or complex policy: use an access broker (e.g., OIDC/OAuth proxy with groups, country blocks, per-path rules). You can still front it with Funnel.
+### Essential Security
+- [x] **Never commit `.env`** - contains secrets
+- [x] **Use break-glass email** - add second admin email to `emails.txt`  
+- [x] **Keep app internal** - only oauth2-proxy should be publicly accessible
+- [x] **Regular updates** - update Docker images regularly
 
-## 15. intellectual sparring (assumptions, counterarguments, stress test, other lenses)
+### Advanced Security
+- [ROTATE] **Rotate secrets** - Google Client Secret if compromised
+- [LOG] **Monitor logs** - review access patterns
+- [MINIMAL] **Minimal scopes** - only `openid email profile`
+- [AUDIT] **Audit access** - review `emails.txt` regularly
 
-* hidden assumptions
+---
 
-  * Assuming public exposure is necessary. If the audience is just you, tailnet-only Serve is simpler and removes public surface.
-  * Assuming a single Google account is always available. If it is locked or 2FA breaks, you are locked out. Keep a break-glass user.
-* counterarguments
+## Use Cases & Alternatives
 
-  * "Network-layer auth via Tailscale ACLs is enough." For Internet users, you are not on the tailnet, so you need app-layer auth. oauth2-proxy provides that cleanly.
-  * "Why not put the app directly on the Internet with Google login?" You can, but Funnel saves you from managing TLS and public networking yourself.
-* stress-test the logic
+### When to Use This Setup
+- [x] **Personal projects** needing public access
+- [x] **Small team tools** with Google accounts
+- [x] **Proof of concepts** requiring auth
+- [x] **Self-hosted apps** behind home networks
 
-  * If someone can reach the upstream app directly (e.g., host port published, or another reverse proxy), they bypass OAuth. Verify there is no listener except 127.0.0.1:4180.
-  * Tokens and cookies: basic scopes avoid Google verification; if you add sensitive scopes later, you may trigger verification requirements.
-* other lenses
+### Alternatives
 
-  * Observability: add `docker compose logs -f` tailing and maybe a small `/healthz` in the app.
-  * Persistence: if you want Funnel to survive reboots, use `tailscale funnel --bg 4180` under a systemd service that restarts tailscaled first.
+| Scenario | Alternative |
+|----------|------------|
+| **Private only** | Skip Funnel, use `tailscale serve` with Tailscale identity |
+| **Complex policies** | Use enterprise access broker (Cloudflare Access, etc.) |
+| **Many users** | Consider dedicated identity provider (Auth0, etc.) |
+| **High availability** | Use cloud load balancer + managed OAuth |
 
-That is it. Save this doc with your project, and you can recreate the stack in a few minutes. If you want, I can package this into a single shell script that scaffolds the files and prints a final checklist.
+---
+
+## Project Structure
+
+```
+shark-no-ninsho-mon/
+├── README.md              # This documentation
+├── docker-compose.yml     # Service definitions
+├── emails.txt             # Allowed users
+├── .env.template          # Configuration template
+├── .gitignore            # Git ignore rules
+├── setup.ps1             # Windows setup script
+├── setup.sh              # Linux/Mac setup script
+└── app/                   # Flask application
+    ├── Dockerfile         # Python container
+    ├── requirements.txt   # Python dependencies
+    └── app.py             # Flask application code
+```
+
+---
+
+## Contributing
+
+1. Fork the repository
+2. Create a feature branch
+3. Test your changes
+4. Submit a pull request
+
+## License
+
+See [LICENSE](LICENSE) file for details.
+
+---
+
+**WARNING:** This setup exposes your application to the internet. Always review security settings and keep authentication properly configured.
