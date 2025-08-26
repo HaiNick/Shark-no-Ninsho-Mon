@@ -1,44 +1,268 @@
-# Setup script for Tailscale Funnel + OAuth2-Proxy + Flask
+# Interactive Setup Script for Tailscale Funnel + OAuth2-Proxy + Flask
 # PowerShell version for Windows
 
-Write-Host "🦈 Shark-no-Ninsho-Mon Setup Script" -ForegroundColor Cyan
-Write-Host "=====================================" -ForegroundColor Cyan
+# ASCII Art Header
+Write-Host ""
+Write-Host "    _____ __               __      "
+Write-Host "   / ___// /_  ____ ______/ /__    "
+Write-Host "   \__ \/ __ \/ __ \/ ___/ //_/    "
+Write-Host "  ___/ / / / / /_/ / /  / ,<       "
+Write-Host " /____/_/ /_/\__,_/_/  /_/|_|      "
+Write-Host "                                   "
+Write-Host " Shark-no-Ninsho-Mon Setup Script "
+Write-Host " ================================= "
 Write-Host ""
 
-Write-Host "1. Generating cookie secret..." -ForegroundColor Yellow
-try {
-    $cookieSecret = [System.Convert]::ToBase64String((1..32 | ForEach-Object { Get-Random -Maximum 256 }))
-    Write-Host "Generated cookie secret: $cookieSecret" -ForegroundColor Green
-    Write-Host ""
-    Write-Host "Update your .env file with this secret:" -ForegroundColor Yellow
-    Write-Host "OAUTH2_PROXY_COOKIE_SECRET=$cookieSecret" -ForegroundColor White
-    Write-Host ""
-} catch {
-    Write-Host "⚠️  Cannot generate cookie secret automatically." -ForegroundColor Red
-    Write-Host "   Please run: [System.Web.Security.Membership]::GeneratePassword(32,0)" -ForegroundColor Yellow
-    Write-Host ""
+# Function to prompt for user input with validation
+function Get-UserInput {
+    param(
+        [string]$Prompt,
+        [string]$DefaultValue = "",
+        [bool]$Required = $true,
+        [bool]$Secret = $false
+    )
+    
+    do {
+        if ($DefaultValue -ne "") {
+            $displayPrompt = "$Prompt [$DefaultValue]: "
+        } else {
+            $displayPrompt = "$Prompt: "
+        }
+        
+        if ($Secret) {
+            $input = Read-Host -Prompt $displayPrompt -AsSecureString
+            $input = [Runtime.InteropServices.Marshal]::PtrToStringAuto([Runtime.InteropServices.Marshal]::SecureStringToBSTR($input))
+        } else {
+            $input = Read-Host -Prompt $displayPrompt
+        }
+        
+        if ($input -eq "" -and $DefaultValue -ne "") {
+            return $DefaultValue
+        }
+        
+        if ($Required -and $input -eq "") {
+            Write-Host "This field is required. Please enter a value." -ForegroundColor Red
+        }
+    } while ($Required -and $input -eq "")
+    
+    return $input
 }
 
-Write-Host "2. Setup Checklist:" -ForegroundColor Yellow
-Write-Host "===================" -ForegroundColor Yellow
+# Function to test if a command exists
+function Test-Command {
+    param([string]$Command)
+    try {
+        Get-Command $Command -ErrorAction Stop | Out-Null
+        return $true
+    } catch {
+        return $false
+    }
+}
+
+Write-Host "STEP 1: Prerequisites Check" -ForegroundColor Yellow
+Write-Host "===========================" -ForegroundColor Yellow
 Write-Host ""
-Write-Host "□ Configure Google OAuth2 client in Google Cloud Console" -ForegroundColor White
-Write-Host "  - Set redirect URI: https://<your-host>.<your-tailnet>.ts.net/oauth2/callback" -ForegroundColor Gray
+
+# Check Docker
+if (Test-Command "docker") {
+    Write-Host "[OK] Docker is installed" -ForegroundColor Green
+} else {
+    Write-Host "[ERROR] Docker is not installed or not in PATH" -ForegroundColor Red
+    Write-Host "Please install Docker Desktop from https://docker.com/products/docker-desktop" -ForegroundColor Yellow
+    exit 1
+}
+
+# Check Tailscale
+if (Test-Command "tailscale") {
+    Write-Host "[OK] Tailscale is installed" -ForegroundColor Green
+    $tailscaleStatus = tailscale status 2>$null
+    if ($LASTEXITCODE -eq 0) {
+        Write-Host "[OK] Tailscale is running and authenticated" -ForegroundColor Green
+    } else {
+        Write-Host "[WARNING] Tailscale may not be authenticated" -ForegroundColor Yellow
+        Write-Host "Please run: tailscale login" -ForegroundColor Yellow
+    }
+} else {
+    Write-Host "[ERROR] Tailscale is not installed or not in PATH" -ForegroundColor Red
+    Write-Host "Please install Tailscale from https://tailscale.com/download" -ForegroundColor Yellow
+    exit 1
+}
+
 Write-Host ""
-Write-Host "□ Update .env with your Google OAuth credentials:" -ForegroundColor White
-Write-Host "  - OAUTH2_PROXY_CLIENT_ID" -ForegroundColor Gray
-Write-Host "  - OAUTH2_PROXY_CLIENT_SECRET" -ForegroundColor Gray
-Write-Host "  - FUNNEL_HOST (your full https:// URL)" -ForegroundColor Gray
-Write-Host "  - FUNNEL_HOSTNAME (your hostname without https://)" -ForegroundColor Gray
+Write-Host "STEP 2: Generate Cookie Secret" -ForegroundColor Yellow
+Write-Host "==============================" -ForegroundColor Yellow
 Write-Host ""
-Write-Host "□ Update emails.txt with allowed email addresses" -ForegroundColor White
+
+try {
+    $cookieSecret = [System.Convert]::ToBase64String((1..32 | ForEach-Object { Get-Random -Maximum 256 }))
+    Write-Host "Generated secure cookie secret: $cookieSecret" -ForegroundColor Green
+} catch {
+    Write-Host "[ERROR] Cannot generate cookie secret automatically." -ForegroundColor Red
+    $cookieSecret = Get-UserInput -Prompt "Please enter a 32-byte base64 cookie secret" -Required $true
+}
+
 Write-Host ""
-Write-Host "□ Build and start containers:" -ForegroundColor White
-Write-Host "  docker compose up -d --build" -ForegroundColor Gray
+Write-Host "STEP 3: Configure Environment" -ForegroundColor Yellow
+Write-Host "=============================" -ForegroundColor Yellow
 Write-Host ""
-Write-Host "□ Start Tailscale Funnel:" -ForegroundColor White
-Write-Host "  tailscale funnel 4180" -ForegroundColor Gray
+
+Write-Host "Please provide your Google OAuth2 credentials."
+Write-Host "Get these from: https://console.cloud.google.com/apis/credentials"
 Write-Host ""
-Write-Host "□ Test access at your public URL" -ForegroundColor White
+
+$clientId = Get-UserInput -Prompt "Google OAuth2 Client ID" -Required $true
+$clientSecret = Get-UserInput -Prompt "Google OAuth2 Client Secret" -Required $true -Secret $true
+
 Write-Host ""
-Write-Host "📖 See README.md for detailed instructions!" -ForegroundColor Cyan
+Write-Host "Please provide your Tailscale Funnel configuration."
+Write-Host "Example: myapp.mytailnet.ts.net"
+Write-Host ""
+
+$hostname = Get-UserInput -Prompt "Your Tailscale hostname (without https://)" -Required $true
+$funnelHost = "https://$hostname"
+$funnelHostname = $hostname
+
+Write-Host ""
+Write-Host "STEP 4: Create Environment File" -ForegroundColor Yellow
+Write-Host "===============================" -ForegroundColor Yellow
+Write-Host ""
+
+$envContent = @"
+# Generated by setup script on $(Get-Date)
+# DO NOT commit this file to version control!
+
+# Google OAuth2 Client Credentials
+OAUTH2_PROXY_CLIENT_ID=$clientId
+OAUTH2_PROXY_CLIENT_SECRET=$clientSecret
+
+# Cookie Secret (32 random bytes, base64 encoded)
+OAUTH2_PROXY_COOKIE_SECRET=$cookieSecret
+
+# Tailscale Funnel Configuration
+FUNNEL_HOST=$funnelHost
+FUNNEL_HOSTNAME=$funnelHostname
+"@
+
+$envContent | Out-File -FilePath ".env" -Encoding UTF8
+Write-Host "[OK] Created .env file with your configuration" -ForegroundColor Green
+
+Write-Host ""
+Write-Host "STEP 5: Configure Authorized Emails" -ForegroundColor Yellow
+Write-Host "====================================" -ForegroundColor Yellow
+Write-Host ""
+
+Write-Host "Current emails.txt content:"
+if (Test-Path "emails.txt") {
+    Get-Content "emails.txt" | Where-Object { $_ -notmatch "^#" -and $_ -ne "" } | ForEach-Object {
+        Write-Host "  - $_" -ForegroundColor Cyan
+    }
+} else {
+    Write-Host "  (file does not exist)" -ForegroundColor Gray
+}
+
+Write-Host ""
+$configureEmails = Get-UserInput -Prompt "Do you want to add/edit authorized emails? (y/n)" -DefaultValue "y" -Required $false
+
+if ($configureEmails -eq "y" -or $configureEmails -eq "yes") {
+    $emails = @()
+    Write-Host "Enter email addresses (one per line, empty line to finish):"
+    
+    do {
+        $email = Get-UserInput -Prompt "Email" -Required $false
+        if ($email -ne "" -and $email -match "^[^@]+@[^@]+\.[^@]+$") {
+            $emails += $email
+            Write-Host "Added: $email" -ForegroundColor Green
+        } elseif ($email -ne "") {
+            Write-Host "Invalid email format, skipping: $email" -ForegroundColor Yellow
+        }
+    } while ($email -ne "")
+    
+    if ($emails.Count -gt 0) {
+        $emailContent = @"
+# Authorized emails for Shark Authentication
+# Generated by setup script on $(Get-Date)
+# Add one email per line
+# Lines starting with # are comments
+
+$($emails -join "`n")
+"@
+        $emailContent | Out-File -FilePath "emails.txt" -Encoding UTF8
+        Write-Host "[OK] Updated emails.txt with $($emails.Count) email(s)" -ForegroundColor Green
+    }
+}
+
+Write-Host ""
+Write-Host "STEP 6: Google Cloud Console Configuration" -ForegroundColor Yellow
+Write-Host "==========================================" -ForegroundColor Yellow
+Write-Host ""
+
+Write-Host "IMPORTANT: Configure your Google OAuth2 client with this redirect URI:"
+Write-Host "$funnelHost/oauth2/callback" -ForegroundColor Cyan
+Write-Host ""
+Write-Host "1. Go to: https://console.cloud.google.com/apis/credentials"
+Write-Host "2. Select your OAuth2 client ID"
+Write-Host "3. Add the redirect URI above to 'Authorized redirect URIs'"
+Write-Host "4. Save the configuration"
+Write-Host ""
+
+$continueSetup = Get-UserInput -Prompt "Have you configured the redirect URI? (y/n)" -Required $true
+
+if ($continueSetup -ne "y" -and $continueSetup -ne "yes") {
+    Write-Host ""
+    Write-Host "Please complete the Google Cloud Console configuration and run this script again." -ForegroundColor Yellow
+    exit 0
+}
+
+Write-Host ""
+Write-Host "STEP 7: Build and Deploy" -ForegroundColor Yellow
+Write-Host "========================" -ForegroundColor Yellow
+Write-Host ""
+
+$deploy = Get-UserInput -Prompt "Build and start the containers now? (y/n)" -DefaultValue "y" -Required $false
+
+if ($deploy -eq "y" -or $deploy -eq "yes") {
+    Write-Host "Building and starting containers..." -ForegroundColor Green
+    docker compose up -d --build
+    
+    if ($LASTEXITCODE -eq 0) {
+        Write-Host "[OK] Containers started successfully" -ForegroundColor Green
+    } else {
+        Write-Host "[ERROR] Failed to start containers" -ForegroundColor Red
+        exit 1
+    }
+}
+
+Write-Host ""
+Write-Host "STEP 8: Start Tailscale Funnel" -ForegroundColor Yellow
+Write-Host "==============================" -ForegroundColor Yellow
+Write-Host ""
+
+$startFunnel = Get-UserInput -Prompt "Start Tailscale Funnel now? (y/n)" -DefaultValue "y" -Required $false
+
+if ($startFunnel -eq "y" -or $startFunnel -eq "yes") {
+    Write-Host "Starting Tailscale Funnel on port 4180..." -ForegroundColor Green
+    Write-Host "Note: This will run in the background. Use Ctrl+C to stop." -ForegroundColor Yellow
+    Write-Host ""
+    Write-Host "Your app will be available at: $funnelHost" -ForegroundColor Cyan
+    Write-Host ""
+    tailscale funnel 4180
+} else {
+    Write-Host ""
+    Write-Host "To start Tailscale Funnel manually, run:" -ForegroundColor Yellow
+    Write-Host "tailscale funnel 4180" -ForegroundColor White
+    Write-Host ""
+    Write-Host "Your app will be available at: $funnelHost" -ForegroundColor Cyan
+}
+
+Write-Host ""
+Write-Host "Setup Complete!" -ForegroundColor Green
+Write-Host "===============" -ForegroundColor Green
+Write-Host ""
+Write-Host "Your secure web app is ready!"
+Write-Host "Access URL: $funnelHost" -ForegroundColor Cyan
+Write-Host ""
+Write-Host "Troubleshooting:"
+Write-Host "- Check container logs: docker compose logs"
+Write-Host "- Restart services: docker compose restart"
+Write-Host "- View Tailscale status: tailscale status"
+Write-Host ""

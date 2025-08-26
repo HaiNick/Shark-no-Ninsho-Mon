@@ -1,51 +1,290 @@
 #!/bin/bash
-# Setup script for Tailscale Funnel + OAuth2-Proxy + Flask
+# Interactive Setup Script for Tailscale Funnel + OAuth2-Proxy + Flask
 
-echo "🦈 Shark-no-Ninsho-Mon Setup Script"
-echo "====================================="
+# ASCII Art Header
+echo ""
+echo "    _____ __               __      "
+echo "   / ___// /_  ____ ______/ /__    "
+echo "   \__ \/ __ \/ __ \/ ___/ //_/    "
+echo "  ___/ / / / / /_/ / /  / ,<       "
+echo " /____/_/ /_/\__,_/_/  /_/|_|      "
+echo "                                   "
+echo " Shark-no-Ninsho-Mon Setup Script "
+echo " ================================= "
 echo ""
 
-echo "1. Generating cookie secret..."
-if command -v openssl &> /dev/null; then
-    COOKIE_SECRET=$(openssl rand -base64 32)
-    echo "Generated cookie secret: $COOKIE_SECRET"
-    echo ""
-    echo "Update your .env file with this secret:"
-    echo "OAUTH2_PROXY_COOKIE_SECRET=$COOKIE_SECRET"
-    echo ""
-elif command -v head &> /dev/null && [ -e /dev/urandom ]; then
-    COOKIE_SECRET=$(head -c 32 /dev/urandom | base64)
-    echo "Generated cookie secret: $COOKIE_SECRET"
-    echo ""
-    echo "Update your .env file with this secret:"
-    echo "OAUTH2_PROXY_COOKIE_SECRET=$COOKIE_SECRET"
-    echo ""
+# Colors for output
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+CYAN='\033[0;36m'
+NC='\033[0m' # No Color
+
+# Function to prompt for user input with validation
+get_user_input() {
+    local prompt="$1"
+    local default_value="$2"
+    local required="$3"
+    local secret="$4"
+    local input=""
+    
+    while true; do
+        if [ -n "$default_value" ]; then
+            display_prompt="$prompt [$default_value]: "
+        else
+            display_prompt="$prompt: "
+        fi
+        
+        if [ "$secret" = "true" ]; then
+            read -s -p "$display_prompt" input
+            echo "" # New line after hidden input
+        else
+            read -p "$display_prompt" input
+        fi
+        
+        if [ -z "$input" ] && [ -n "$default_value" ]; then
+            input="$default_value"
+            break
+        fi
+        
+        if [ "$required" = "true" ] && [ -z "$input" ]; then
+            echo -e "${RED}This field is required. Please enter a value.${NC}"
+        else
+            break
+        fi
+    done
+    
+    echo "$input"
+}
+
+# Function to test if a command exists
+command_exists() {
+    command -v "$1" >/dev/null 2>&1
+}
+
+echo -e "${YELLOW}STEP 1: Prerequisites Check${NC}"
+echo -e "${YELLOW}===========================${NC}"
+echo ""
+
+# Check Docker
+if command_exists docker; then
+    echo -e "${GREEN}[OK] Docker is installed${NC}"
 else
-    echo "⚠️  Cannot generate cookie secret automatically."
-    echo "   Please run: head -c 32 /dev/urandom | base64"
-    echo "   Or on Windows: [System.Web.Security.Membership]::GeneratePassword(32,0)"
+    echo -e "${RED}[ERROR] Docker is not installed or not in PATH${NC}"
+    echo -e "${YELLOW}Please install Docker from https://docker.com/get-docker${NC}"
+    exit 1
 fi
 
-echo "2. Setup Checklist:"
-echo "==================="
+# Check Docker Compose
+if command_exists docker && docker compose version >/dev/null 2>&1; then
+    echo -e "${GREEN}[OK] Docker Compose is available${NC}"
+elif command_exists docker-compose; then
+    echo -e "${GREEN}[OK] Docker Compose is available (legacy)${NC}"
+else
+    echo -e "${RED}[ERROR] Docker Compose is not available${NC}"
+    echo -e "${YELLOW}Please install Docker Compose${NC}"
+    exit 1
+fi
+
+# Check Tailscale
+if command_exists tailscale; then
+    echo -e "${GREEN}[OK] Tailscale is installed${NC}"
+    if tailscale status >/dev/null 2>&1; then
+        echo -e "${GREEN}[OK] Tailscale is running and authenticated${NC}"
+    else
+        echo -e "${YELLOW}[WARNING] Tailscale may not be authenticated${NC}"
+        echo -e "${YELLOW}Please run: tailscale login${NC}"
+    fi
+else
+    echo -e "${RED}[ERROR] Tailscale is not installed or not in PATH${NC}"
+    echo -e "${YELLOW}Please install Tailscale from https://tailscale.com/download${NC}"
+    exit 1
+fi
+
 echo ""
-echo "□ Configure Google OAuth2 client in Google Cloud Console"
-echo "  - Set redirect URI: https://<your-host>.<your-tailnet>.ts.net/oauth2/callback"
+echo -e "${YELLOW}STEP 2: Generate Cookie Secret${NC}"
+echo -e "${YELLOW}==============================${NC}"
 echo ""
-echo "□ Update .env with your Google OAuth credentials:"
-echo "  - OAUTH2_PROXY_CLIENT_ID"
-echo "  - OAUTH2_PROXY_CLIENT_SECRET"
-echo "  - FUNNEL_HOST (your full https:// URL)"
-echo "  - FUNNEL_HOSTNAME (your hostname without https://)"
+
+if command_exists openssl; then
+    cookie_secret=$(openssl rand -base64 32)
+    echo -e "${GREEN}Generated secure cookie secret: $cookie_secret${NC}"
+elif [ -r /dev/urandom ] && command_exists base64; then
+    cookie_secret=$(head -c 32 /dev/urandom | base64)
+    echo -e "${GREEN}Generated secure cookie secret: $cookie_secret${NC}"
+else
+    echo -e "${RED}[ERROR] Cannot generate cookie secret automatically.${NC}"
+    cookie_secret=$(get_user_input "Please enter a 32-byte base64 cookie secret" "" "true" "false")
+fi
+
 echo ""
-echo "□ Update emails.txt with allowed email addresses"
+echo -e "${YELLOW}STEP 3: Configure Environment${NC}"
+echo -e "${YELLOW}============================${NC}"
 echo ""
-echo "□ Build and start containers:"
-echo "  docker compose up -d --build"
+
+echo "Please provide your Google OAuth2 credentials."
+echo "Get these from: https://console.cloud.google.com/apis/credentials"
 echo ""
-echo "□ Start Tailscale Funnel:"
-echo "  tailscale funnel 4180"
+
+client_id=$(get_user_input "Google OAuth2 Client ID" "" "true" "false")
+client_secret=$(get_user_input "Google OAuth2 Client Secret" "" "true" "true")
+
 echo ""
-echo "□ Test access at your public URL"
+echo "Please provide your Tailscale Funnel configuration."
+echo "Example: myapp.mytailnet.ts.net"
 echo ""
-echo "📖 See README.md for detailed instructions!"
+
+hostname=$(get_user_input "Your Tailscale hostname (without https://)" "" "true" "false")
+funnel_host="https://$hostname"
+funnel_hostname="$hostname"
+
+echo ""
+echo -e "${YELLOW}STEP 4: Create Environment File${NC}"
+echo -e "${YELLOW}==============================${NC}"
+echo ""
+
+cat > .env << EOF
+# Generated by setup script on $(date)
+# DO NOT commit this file to version control!
+
+# Google OAuth2 Client Credentials
+OAUTH2_PROXY_CLIENT_ID=$client_id
+OAUTH2_PROXY_CLIENT_SECRET=$client_secret
+
+# Cookie Secret (32 random bytes, base64 encoded)
+OAUTH2_PROXY_COOKIE_SECRET=$cookie_secret
+
+# Tailscale Funnel Configuration
+FUNNEL_HOST=$funnel_host
+FUNNEL_HOSTNAME=$funnel_hostname
+EOF
+
+echo -e "${GREEN}[OK] Created .env file with your configuration${NC}"
+
+echo ""
+echo -e "${YELLOW}STEP 5: Configure Authorized Emails${NC}"
+echo -e "${YELLOW}====================================${NC}"
+echo ""
+
+echo "Current emails.txt content:"
+if [ -f "emails.txt" ]; then
+    grep -v "^#" emails.txt | grep -v "^$" | while read -r email; do
+        echo -e "  - ${CYAN}$email${NC}"
+    done
+else
+    echo "  (file does not exist)"
+fi
+
+echo ""
+configure_emails=$(get_user_input "Do you want to add/edit authorized emails? (y/n)" "y" "false" "false")
+
+if [[ "$configure_emails" =~ ^[Yy]([Ee][Ss])?$ ]]; then
+    emails=()
+    echo "Enter email addresses (one per line, empty line to finish):"
+    
+    while true; do
+        email=$(get_user_input "Email" "" "false" "false")
+        if [ -z "$email" ]; then
+            break
+        elif [[ "$email" =~ ^[^@]+@[^@]+\.[^@]+$ ]]; then
+            emails+=("$email")
+            echo -e "${GREEN}Added: $email${NC}"
+        else
+            echo -e "${YELLOW}Invalid email format, skipping: $email${NC}"
+        fi
+    done
+    
+    if [ ${#emails[@]} -gt 0 ]; then
+        cat > emails.txt << EOF
+# Authorized emails for Shark Authentication
+# Generated by setup script on $(date)
+# Add one email per line
+# Lines starting with # are comments
+
+$(printf '%s\n' "${emails[@]}")
+EOF
+        echo -e "${GREEN}[OK] Updated emails.txt with ${#emails[@]} email(s)${NC}"
+    fi
+fi
+
+echo ""
+echo -e "${YELLOW}STEP 6: Google Cloud Console Configuration${NC}"
+echo -e "${YELLOW}==========================================${NC}"
+echo ""
+
+echo "IMPORTANT: Configure your Google OAuth2 client with this redirect URI:"
+echo -e "${CYAN}$funnel_host/oauth2/callback${NC}"
+echo ""
+echo "1. Go to: https://console.cloud.google.com/apis/credentials"
+echo "2. Select your OAuth2 client ID"
+echo "3. Add the redirect URI above to 'Authorized redirect URIs'"
+echo "4. Save the configuration"
+echo ""
+
+continue_setup=$(get_user_input "Have you configured the redirect URI? (y/n)" "" "true" "false")
+
+if [[ ! "$continue_setup" =~ ^[Yy]([Ee][Ss])?$ ]]; then
+    echo ""
+    echo -e "${YELLOW}Please complete the Google Cloud Console configuration and run this script again.${NC}"
+    exit 0
+fi
+
+echo ""
+echo -e "${YELLOW}STEP 7: Build and Deploy${NC}"
+echo -e "${YELLOW}========================${NC}"
+echo ""
+
+deploy=$(get_user_input "Build and start the containers now? (y/n)" "y" "false" "false")
+
+if [[ "$deploy" =~ ^[Yy]([Ee][Ss])?$ ]]; then
+    echo -e "${GREEN}Building and starting containers...${NC}"
+    
+    # Use docker compose or docker-compose
+    if docker compose version >/dev/null 2>&1; then
+        docker compose up -d --build
+    else
+        docker-compose up -d --build
+    fi
+    
+    if [ $? -eq 0 ]; then
+        echo -e "${GREEN}[OK] Containers started successfully${NC}"
+    else
+        echo -e "${RED}[ERROR] Failed to start containers${NC}"
+        exit 1
+    fi
+fi
+
+echo ""
+echo -e "${YELLOW}STEP 8: Start Tailscale Funnel${NC}"
+echo -e "${YELLOW}==============================${NC}"
+echo ""
+
+start_funnel=$(get_user_input "Start Tailscale Funnel now? (y/n)" "y" "false" "false")
+
+if [[ "$start_funnel" =~ ^[Yy]([Ee][Ss])?$ ]]; then
+    echo -e "${GREEN}Starting Tailscale Funnel on port 4180...${NC}"
+    echo -e "${YELLOW}Note: This will run in the background. Use Ctrl+C to stop.${NC}"
+    echo ""
+    echo -e "Your app will be available at: ${CYAN}$funnel_host${NC}"
+    echo ""
+    tailscale funnel 4180
+else
+    echo ""
+    echo -e "${YELLOW}To start Tailscale Funnel manually, run:${NC}"
+    echo "tailscale funnel 4180"
+    echo ""
+    echo -e "Your app will be available at: ${CYAN}$funnel_host${NC}"
+fi
+
+echo ""
+echo -e "${GREEN}Setup Complete!${NC}"
+echo -e "${GREEN}===============${NC}"
+echo ""
+echo "Your secure web app is ready!"
+echo -e "Access URL: ${CYAN}$funnel_host${NC}"
+echo ""
+echo "Troubleshooting:"
+echo "- Check container logs: docker compose logs"
+echo "- Restart services: docker compose restart"
+echo "- View Tailscale status: tailscale status"
+echo ""
