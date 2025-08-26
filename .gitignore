@@ -3,6 +3,22 @@
 .env.local
 .env.*.local
 
+# Production security - never commit these files
+admin.py
+admin_*.py
+*/admin.py
+*/admin_*.py
+
+# Log files
+*.log
+access.log
+*/access.log
+
+# Development documentation
+README_*.md
+SECURITY.md
+DEV_*.md
+
 # Python
 __pycache__/
 *.py[cod]

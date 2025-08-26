@@ -1,5 +1,5 @@
 # file: app/app.py
-from flask import Flask, request, jsonify
+from flask import Flask, request, jsonify, render_template, abort
 import logging
 import datetime
 import os
@@ -7,15 +7,62 @@ import os
 app = Flask(__name__)
 
 # Configure logging
+log_file_path = '/app/access.log' if os.path.exists('/app') else './access.log'
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(levelname)s - %(message)s',
     handlers=[
         logging.StreamHandler(),  # Console output
-        logging.FileHandler('/app/access.log')  # File output
+        logging.FileHandler(log_file_path)  # File output
     ]
 )
 logger = logging.getLogger(__name__)
+
+def load_authorized_emails():
+    """Load authorized emails from emails.txt file"""
+    emails_file_path = '../emails.txt' if os.path.exists('../emails.txt') else './emails.txt'
+    authorized_emails = set()
+    
+    try:
+        with open(emails_file_path, 'r') as f:
+            for line in f:
+                email = line.strip()
+                if email and not email.startswith('#'):  # Skip empty lines and comments
+                    authorized_emails.add(email.lower())  # Store in lowercase for case-insensitive comparison
+        logger.info(f"Loaded {len(authorized_emails)} authorized emails from {emails_file_path}")
+    except FileNotFoundError:
+        logger.warning(f"Emails file not found at {emails_file_path}. All users will be blocked.")
+    except Exception as e:
+        logger.error(f"Error loading emails file: {e}")
+    
+    return authorized_emails
+
+def is_user_authorized(email):
+    """Check if user email is in the authorized list"""
+    if email == "anonymous":
+        # For development purposes, we'll temporarily allow anonymous but check the email list anyway
+        # In production, you'd remove this or change it to return False
+        pass
+    
+    authorized_emails = load_authorized_emails()
+    is_authorized = email.lower() in authorized_emails
+    
+    if is_authorized:
+        logger.info(f"AUTHORIZATION SUCCESS - User '{email}' is authorized to access the application")
+    else:
+        logger.warning(f"AUTHORIZATION FAILED - User '{email}' is not in authorized list")
+    
+    return is_authorized
+
+def check_authorization():
+    """Check if current user is authorized to access the application"""
+    email = get_email()
+    
+    if not is_user_authorized(email):
+        logger.warning(f"SECURITY BLOCK - Unauthorized access attempt by: {email} | IP: {get_real_ip()} | Path: {request.path}")
+        return False
+    
+    return True
 
 def get_email():
     """Get user email from various possible headers"""
@@ -78,228 +125,32 @@ def log_access():
 
 @app.before_request
 def before_request():
-    """Log every request"""
+    """Check authorization and log every request"""
+    # Skip authorization check for certain endpoints
+    skip_auth_paths = ['/favicon.ico', '/static/', '/unauthorized']
+    
+    if not any(request.path.startswith(path) for path in skip_auth_paths):
+        if not check_authorization():
+            # Log the unauthorized attempt
+            log_access()
+            # Generate incident ID for tracking
+            import uuid
+            incident_id = str(uuid.uuid4())[:8]
+            timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S UTC")
+            
+            # Redirect to unauthorized page
+            return render_template('unauthorized.html', 
+                                 email=get_email(), 
+                                 real_ip=get_real_ip(),
+                                 timestamp=timestamp,
+                                 incident_id=incident_id), 403
+    
+    # Log the request
     log_access()
 
 @app.route("/")
 def index():
-    email = get_email()
-    real_ip = get_real_ip()
-    timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S UTC")
-    
-    return f"""<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Shark Authentication Test</title>
-    <style>
-        * {{
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }}
-        
-        body {{
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            line-height: 1.6;
-            color: #333;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            min-height: 100vh;
-            padding: 20px;
-        }}
-        
-        .container {{
-            max-width: 800px;
-            margin: 0 auto;
-            background: white;
-            border-radius: 12px;
-            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
-            overflow: hidden;
-        }}
-        
-        .header {{
-            background: linear-gradient(135deg, #2c3e50 0%, #34495e 100%);
-            color: white;
-            padding: 30px;
-            text-align: center;
-        }}
-        
-        .header h1 {{
-            font-size: 2.5em;
-            margin-bottom: 10px;
-            font-weight: 300;
-        }}
-        
-        .header p {{
-            opacity: 0.9;
-            font-size: 1.1em;
-        }}
-        
-        .content {{
-            padding: 30px;
-        }}
-        
-        .info-card {{
-            background: #f8f9fa;
-            border-left: 4px solid #007bff;
-            padding: 20px;
-            margin: 20px 0;
-            border-radius: 8px;
-        }}
-        
-        .info-card h3 {{
-            color: #2c3e50;
-            margin-bottom: 15px;
-            font-size: 1.2em;
-        }}
-        
-        .info-item {{
-            display: flex;
-            justify-content: space-between;
-            padding: 8px 0;
-            border-bottom: 1px solid #e9ecef;
-        }}
-        
-        .info-item:last-child {{
-            border-bottom: none;
-        }}
-        
-        .info-label {{
-            font-weight: 600;
-            color: #495057;
-        }}
-        
-        .info-value {{
-            color: #007bff;
-            font-family: 'Courier New', monospace;
-        }}
-        
-        .nav-section {{
-            margin: 30px 0;
-        }}
-        
-        .nav-section h3 {{
-            color: #2c3e50;
-            margin-bottom: 15px;
-            font-size: 1.2em;
-        }}
-        
-        .nav-grid {{
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
-            gap: 15px;
-        }}
-        
-        .nav-item {{
-            display: block;
-            padding: 15px 20px;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: white;
-            text-decoration: none;
-            border-radius: 8px;
-            transition: transform 0.2s, box-shadow 0.2s;
-            text-align: center;
-        }}
-        
-        .nav-item:hover {{
-            transform: translateY(-2px);
-            box-shadow: 0 5px 15px rgba(0,0,0,0.2);
-        }}
-        
-        .nav-item .icon {{
-            font-family: monospace;
-            font-size: 1.2em;
-            margin-right: 8px;
-        }}
-        
-        .security-note {{
-            background: #e8f4fd;
-            border: 1px solid #bee5eb;
-            border-radius: 8px;
-            padding: 20px;
-            margin: 30px 0;
-        }}
-        
-        .security-note h4 {{
-            color: #0c5460;
-            margin-bottom: 10px;
-        }}
-        
-        .security-note p {{
-            color: #0c5460;
-            margin: 0;
-        }}
-        
-        @media (max-width: 768px) {{
-            .info-item {{
-                flex-direction: column;
-            }}
-            
-            .nav-grid {{
-                grid-template-columns: 1fr;
-            }}
-        }}
-    </style>
-</head>
-<body>
-    <div class="container">
-        <div class="header">
-            <h1>SHARK AUTHENTICATION TEST</h1>
-            <p>Secure Access via Tailscale Funnel + OAuth2-Proxy</p>
-        </div>
-        
-        <div class="content">
-            <div class="info-card">
-                <h3>Authentication Information</h3>
-                <div class="info-item">
-                    <span class="info-label">Authenticated as:</span>
-                    <span class="info-value">{email}</span>
-                </div>
-                <div class="info-item">
-                    <span class="info-label">Your IP Address:</span>
-                    <span class="info-value">{real_ip}</span>
-                </div>
-                <div class="info-item">
-                    <span class="info-label">Access Time:</span>
-                    <span class="info-value">{timestamp}</span>
-                </div>
-                <div class="info-item">
-                    <span class="info-label">Host:</span>
-                    <span class="info-value">{request.headers.get('X-Forwarded-Host', 'localhost')}</span>
-                </div>
-            </div>
-            
-            <div class="nav-section">
-                <h3>Available Endpoints</h3>
-                <div class="nav-grid">
-                    <a href="/api/whoami" class="nav-item">
-                        <span class="icon">[?]</span>
-                        <span>/api/whoami - JSON user info</span>
-                    </a>
-                    <a href="/headers" class="nav-item">
-                        <span class="icon">[#]</span>
-                        <span>/headers - Authentication headers</span>
-                    </a>
-                    <a href="/logs" class="nav-item">
-                        <span class="icon">[*]</span>
-                        <span>/logs - Recent access logs</span>
-                    </a>
-                    <a href="/health" class="nav-item">
-                        <span class="icon">[+]</span>
-                        <span>/health - Health check</span>
-                    </a>
-                </div>
-            </div>
-            
-            <div class="security-note">
-                <h4>Security Notice</h4>
-                <p>This page is protected by oauth2-proxy with Google authentication. Only users listed in emails.txt can access this application. All requests are logged for security monitoring.</p>
-            </div>
-        </div>
-    </div>
-</body>
-</html>"""
+    return render_template('index.html')
 
 @app.route("/api/whoami")
 def whoami():
@@ -323,7 +174,7 @@ def whoami():
 @app.route("/headers")
 def headers():
     """Show all authentication and forwarding headers"""
-    auth_headers = [
+    auth_headers_list = [
         "X-Forwarded-Email", "X-Forwarded-User", "X-Auth-Request-Email",
         "X-Forwarded-Proto", "X-Forwarded-Host", "X-Forwarded-Uri", 
         "X-Real-IP", "X-Forwarded-For", "CF-Connecting-IP",
@@ -333,310 +184,83 @@ def headers():
     email = get_email()
     real_ip = get_real_ip()
     
-    return f"""<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Authentication Headers - Shark Test</title>
-    <style>
-        body {{
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            line-height: 1.6;
-            color: #333;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            min-height: 100vh;
-            padding: 20px;
-            margin: 0;
-        }}
-        
-        .container {{
-            max-width: 1000px;
-            margin: 0 auto;
-            background: white;
-            border-radius: 12px;
-            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
-            overflow: hidden;
-        }}
-        
-        .header {{
-            background: linear-gradient(135deg, #2c3e50 0%, #34495e 100%);
-            color: white;
-            padding: 30px;
-            text-align: center;
-        }}
-        
-        .content {{
-            padding: 30px;
-        }}
-        
-        .info-summary {{
-            background: #e8f4fd;
-            border-left: 4px solid #007bff;
-            padding: 20px;
-            margin-bottom: 30px;
-            border-radius: 8px;
-        }}
-        
-        .code-section {{
-            margin: 20px 0;
-        }}
-        
-        .code-section h3 {{
-            color: #2c3e50;
-            margin-bottom: 15px;
-            font-size: 1.2em;
-        }}
-        
-        .code-block {{
-            background: #f8f9fa;
-            border: 1px solid #e9ecef;
-            border-radius: 8px;
-            padding: 20px;
-            font-family: 'Courier New', Monaco, monospace;
-            font-size: 14px;
-            line-height: 1.4;
-            overflow-x: auto;
-            white-space: pre-wrap;
-        }}
-        
-        .back-link {{
-            display: inline-block;
-            padding: 10px 20px;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: white;
-            text-decoration: none;
-            border-radius: 8px;
-            margin-top: 20px;
-            transition: transform 0.2s;
-        }}
-        
-        .back-link:hover {{
-            transform: translateY(-2px);
-        }}
-        
-        .highlight {{
-            color: #007bff;
-            font-weight: bold;
-        }}
-    </style>
-</head>
-<body>
-    <div class="container">
-        <div class="header">
-            <h1>AUTHENTICATION HEADERS DEBUG</h1>
-            <p>Header Analysis and Debugging Information</p>
-        </div>
-        
-        <div class="content">
-            <div class="info-summary">
-                <h3>Parsed Information Summary</h3>
-                <p><strong>Detected Email:</strong> <span class="highlight">{email}</span></p>
-                <p><strong>Detected IP:</strong> <span class="highlight">{real_ip}</span></p>
-            </div>
-            
-            <div class="code-section">
-                <h3>Authentication Headers</h3>
-                <div class="code-block">""" + "\n".join(f"{header}: {request.headers.get(header, 'None')}" for header in auth_headers) + f"""</div>
-            </div>
-            
-            <div class="code-section">
-                <h3>All Request Headers</h3>
-                <div class="code-block">""" + "\n".join(f"{header}: {value}" for header, value in request.headers) + f"""</div>
-            </div>
-            
-            <a href="/" class="back-link">&larr; Back to Home</a>
-        </div>
-    </div>
-</body>
-</html>"""
+    auth_headers = [(header, request.headers.get(header)) for header in auth_headers_list]
+    all_headers = [(header, value) for header, value in request.headers]
+    
+    return render_template('headers.html', 
+                         email=email, 
+                         real_ip=real_ip,
+                         auth_headers=auth_headers,
+                         all_headers=all_headers)
+
+@app.route("/api/headers")
+def api_headers():
+    """API endpoint for headers information"""
+    auth_headers_list = [
+        "X-Forwarded-Email", "X-Forwarded-User", "X-Auth-Request-Email",
+        "X-Forwarded-Proto", "X-Forwarded-Host", "X-Forwarded-Uri", 
+        "X-Real-IP", "X-Forwarded-For", "CF-Connecting-IP",
+        "X-Client-IP", "User-Agent", "Host"
+    ]
+    
+    email = get_email()
+    real_ip = get_real_ip()
+    
+    headers_data = {
+        "detected_email": email,
+        "detected_ip": real_ip,
+        "auth_headers": {header: request.headers.get(header) for header in auth_headers_list},
+        "all_headers": dict(request.headers),
+        "timestamp": datetime.datetime.now().isoformat()
+    }
+    
+    return jsonify(headers_data)
 
 @app.route("/logs")
 def show_logs():
     """Show recent access logs"""
+    log_file_path = '/app/access.log' if os.path.exists('/app') else './access.log'
     try:
-        with open('/app/access.log', 'r') as f:
+        with open(log_file_path, 'r') as f:
+            logs = f.readlines()
+            # Show last 50 lines
+            recent_logs = logs[-50:] if len(logs) > 50 else logs
+            
+        log_content = ''.join(recent_logs)
+        log_count = len(recent_logs)
+        
+        return render_template('logs.html', logs=log_content, log_count=log_count)
+        
+    except FileNotFoundError:
+        return render_template('logs.html', 
+                             logs='No log file found. Logs will appear here after some requests are made to the application.',
+                             log_count=0)
+
+@app.route("/api/logs")
+def api_logs():
+    """API endpoint for logs"""
+    log_file_path = '/app/access.log' if os.path.exists('/app') else './access.log'
+    try:
+        with open(log_file_path, 'r') as f:
             logs = f.readlines()
             # Show last 50 lines
             recent_logs = logs[-50:] if len(logs) > 50 else logs
             
         log_content = ''.join(recent_logs)
         
-        return f"""<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Access Logs - Shark Test</title>
-    <style>
-        body {{
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            line-height: 1.6;
-            color: #333;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            min-height: 100vh;
-            padding: 20px;
-            margin: 0;
-        }}
+        return jsonify({
+            "logs": log_content,
+            "log_count": len(recent_logs),
+            "timestamp": datetime.datetime.now().isoformat()
+        })
         
-        .container {{
-            max-width: 1200px;
-            margin: 0 auto;
-            background: white;
-            border-radius: 12px;
-            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
-            overflow: hidden;
-        }}
-        
-        .header {{
-            background: linear-gradient(135deg, #2c3e50 0%, #34495e 100%);
-            color: white;
-            padding: 30px;
-            text-align: center;
-        }}
-        
-        .content {{
-            padding: 30px;
-        }}
-        
-        .log-info {{
-            background: #d4edda;
-            border-left: 4px solid #28a745;
-            padding: 20px;
-            margin-bottom: 30px;
-            border-radius: 8px;
-        }}
-        
-        .log-container {{
-            background: #f8f9fa;
-            border: 1px solid #e9ecef;
-            border-radius: 8px;
-            padding: 20px;
-            height: 500px;
-            overflow-y: auto;
-            font-family: 'Courier New', Monaco, monospace;
-            font-size: 13px;
-            line-height: 1.4;
-            white-space: pre-wrap;
-        }}
-        
-        .back-link {{
-            display: inline-block;
-            padding: 10px 20px;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: white;
-            text-decoration: none;
-            border-radius: 8px;
-            margin-top: 20px;
-            transition: transform 0.2s;
-        }}
-        
-        .back-link:hover {{
-            transform: translateY(-2px);
-        }}
-    </style>
-</head>
-<body>
-    <div class="container">
-        <div class="header">
-            <h1>RECENT ACCESS LOGS</h1>
-            <p>Real-time Activity Monitoring</p>
-        </div>
-        
-        <div class="content">
-            <div class="log-info">
-                <p><strong>Log Entries:</strong> Showing last {len(recent_logs)} entries</p>
-                <p><strong>Auto-refresh:</strong> Reload page to see latest activity</p>
-            </div>
-            
-            <div class="log-container">{log_content}</div>
-            
-            <a href="/" class="back-link">&larr; Back to Home</a>
-        </div>
-    </div>
-</body>
-</html>"""
     except FileNotFoundError:
-        return f"""<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Access Logs - Shark Test</title>
-    <style>
-        body {{
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            line-height: 1.6;
-            color: #333;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            min-height: 100vh;
-            padding: 20px;
-            margin: 0;
-        }}
-        
-        .container {{
-            max-width: 800px;
-            margin: 0 auto;
-            background: white;
-            border-radius: 12px;
-            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
-            overflow: hidden;
-        }}
-        
-        .header {{
-            background: linear-gradient(135deg, #2c3e50 0%, #34495e 100%);
-            color: white;
-            padding: 30px;
-            text-align: center;
-        }}
-        
-        .content {{
-            padding: 30px;
-            text-align: center;
-        }}
-        
-        .no-logs {{
-            background: #fff3cd;
-            border-left: 4px solid #ffc107;
-            padding: 20px;
-            margin: 20px 0;
-            border-radius: 8px;
-        }}
-        
-        .back-link {{
-            display: inline-block;
-            padding: 10px 20px;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: white;
-            text-decoration: none;
-            border-radius: 8px;
-            margin-top: 20px;
-            transition: transform 0.2s;
-        }}
-        
-        .back-link:hover {{
-            transform: translateY(-2px);
-        }}
-    </style>
-</head>
-<body>
-    <div class="container">
-        <div class="header">
-            <h1>ACCESS LOGS</h1>
-            <p>Activity Monitoring</p>
-        </div>
-        
-        <div class="content">
-            <div class="no-logs">
-                <h3>No Log File Found</h3>
-                <p>Logs will appear here after some requests are made to the application.</p>
-            </div>
-            
-            <a href="/" class="back-link">&larr; Back to Home</a>
-        </div>
-    </div>
-</body>
-</html>"""
+        return jsonify({
+            "logs": "No log file found",
+            "log_count": 0,
+            "timestamp": datetime.datetime.now().isoformat(),
+            "error": "Log file not found"
+        })
 
 @app.route("/health")
 def health():
@@ -652,88 +276,33 @@ def health():
     
     return jsonify(health_info)
 
+@app.route("/health-page")
+def health_page():
+    """Health check page"""
+    return render_template('health_page.html')
+
+@app.route("/unauthorized")
+def unauthorized_page():
+    """Display unauthorized access page"""
+    import uuid
+    incident_id = str(uuid.uuid4())[:8]
+    timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S UTC")
+    
+    return render_template('unauthorized.html', 
+                         email=get_email(), 
+                         real_ip=get_real_ip(),
+                         timestamp=timestamp,
+                         incident_id=incident_id), 403
+
+@app.route("/favicon.ico")
+def favicon():
+    """Simple favicon endpoint to prevent 404s"""
+    return "", 204
+
 @app.errorhandler(404)
 def not_found(error):
     email = get_email()
-    return f"""<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>404 - Page Not Found</title>
-    <style>
-        body {{
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            line-height: 1.6;
-            color: #333;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            min-height: 100vh;
-            padding: 20px;
-            margin: 0;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-        }}
-        
-        .container {{
-            max-width: 500px;
-            background: white;
-            border-radius: 12px;
-            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
-            padding: 40px;
-            text-align: center;
-        }}
-        
-        .error-code {{
-            font-size: 4em;
-            font-weight: bold;
-            color: #dc3545;
-            margin-bottom: 20px;
-        }}
-        
-        .error-message {{
-            font-size: 1.2em;
-            margin-bottom: 20px;
-            color: #6c757d;
-        }}
-        
-        .user-info {{
-            background: #f8f9fa;
-            padding: 15px;
-            border-radius: 8px;
-            margin: 20px 0;
-        }}
-        
-        .back-link {{
-            display: inline-block;
-            padding: 10px 20px;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: white;
-            text-decoration: none;
-            border-radius: 8px;
-            margin-top: 20px;
-            transition: transform 0.2s;
-        }}
-        
-        .back-link:hover {{
-            transform: translateY(-2px);
-        }}
-    </style>
-</head>
-<body>
-    <div class="container">
-        <div class="error-code">404</div>
-        <div class="error-message">Page Not Found</div>
-        <p>The requested page could not be found on this server.</p>
-        
-        <div class="user-info">
-            <strong>Authenticated as:</strong> {email}
-        </div>
-        
-        <a href="/" class="back-link">&larr; Back to Home</a>
-    </div>
-</body>
-</html>""", 404
+    return render_template('404.html', email=email), 404
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=8000, debug=False)

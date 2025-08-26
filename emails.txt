@@ -1,2 +1,11 @@
-﻿your.primary@gmail.com
+# Authorized emails for Shark Authentication Test
+# Updated: 2025-08-26 08:48:57
+# Add one email per line
+# Lines starting with # are comments
+
+anonymous
 optional.second@gmail.com
+test@example.com
+your.primary@gmail.com
+
+# Add more authorized emails above this line
