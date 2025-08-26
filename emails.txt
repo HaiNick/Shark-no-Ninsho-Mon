@@ -3,9 +3,7 @@
 # Add one email per line
 # Lines starting with # are comments
 
-anonymous
-optional.second@gmail.com
-test@example.com
 your.primary@gmail.com
+optional.second@gmail.com
 
 # Add more authorized emails above this line
