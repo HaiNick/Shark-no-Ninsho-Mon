@@ -8,6 +8,32 @@ A minimal, production-ready setup for exposing web applications to the internet 
 
 ## Quick Start
 
+### Automated Interactive Setup (Recommended)
+
+```bash
+# 1. Clone the repository
+git clone https://github.com/HaiNick/Shark-no-Ninsho-Mon
+cd Shark-no-Ninsho-Mon
+
+# 2. Run interactive setup
+# Windows:
+.\setup.ps1
+
+# Linux/Mac:
+./setup.sh
+
+# 3. Follow the guided prompts for:
+#    - Google OAuth2 credentials
+#    - Tailscale hostname
+#    - Authorized user emails
+#    - Automatic deployment
+
+# 4. Access your secure app
+# https://your-host.your-tailnet.ts.net
+```
+
+### Manual Setup (Advanced)
+
 ```bash
 # 1. Clone and setup
 git clone https://github.com/HaiNick/Shark-no-Ninsho-Mon
@@ -60,17 +86,46 @@ Internet Users
 ```
 
 **Security Model:**
-- [LOCKED] All traffic goes through Google OAuth
-- [GLOBE] Only oauth2-proxy is exposed publicly (via Funnel)
-- [KEY] Flask app is internal-only (no direct internet access)
-- [MAIL] User access controlled by email whitelist
+- **[LOCKED]** All traffic goes through Google OAuth
+- **[GLOBE]** Only oauth2-proxy is exposed publicly (via Funnel)
+- **[KEY]** Flask app is internal-only (no direct internet access)
+- **[MAIL]** User access controlled by email whitelist
 
 ---
 
 ## Configuration
 
-### 1. Google OAuth Setup
+### Interactive Setup (Recommended)
 
+The included setup scripts will guide you through the entire configuration process:
+
+**Windows Users:**
+```powershell
+.\setup.ps1
+```
+
+**Linux/Mac Users:**
+```bash
+# Make executable and run
+chmod +x setup.sh
+./setup.sh
+```
+
+**What the interactive setup does:**
+- **[CHECK]** Verifies all prerequisites (Docker, Tailscale, etc.)
+- **[GENERATE]** Creates secure cookie secrets automatically
+- **[INPUT]** Prompts for Google OAuth2 credentials
+- **[VALIDATE]** Validates email addresses for authorized users
+- **[CONFIG]** Creates `.env` and `emails.txt` files
+- **[GUIDE]** Provides step-by-step Google Cloud Console instructions
+- **[DEPLOY]** Optionally builds and starts containers
+- **[FUNNEL]** Optionally starts Tailscale Funnel
+
+### Manual Configuration
+
+If you prefer manual setup or need to modify an existing configuration:
+
+#### 1. Google OAuth Setup
 1. **Google Cloud Console** -> Create/Select Project
 2. **OAuth Consent Screen:**
    - User Type: `External`
@@ -82,7 +137,7 @@ Internet Users
 
 **Save:** Client ID & Client Secret (never commit these!)
 
-### 2. Environment Configuration
+#### 2. Environment Configuration
 
 Copy the template and fill in your values:
 
@@ -105,10 +160,14 @@ FUNNEL_HOSTNAME=your-host.your-tailnet.ts.net
 head -c 32 /dev/urandom | base64
 
 # Windows PowerShell
-./setup.ps1  # Generates automatically
+[Convert]::ToBase64String((1..32 | ForEach-Object { Get-Random -Maximum 256 }))
+
+# Or use interactive setup (automatically generates)
+./setup.sh  # Linux/Mac
+.\setup.ps1  # Windows
 ```
 
-### 3. User Access Control
+#### 3. User Access Control
 
 Edit `emails.txt` with allowed Google accounts:
 ```
@@ -228,26 +287,26 @@ docker compose exec oauth2-proxy wget -qO- http://app:8000/headers
 ## Security Best Practices
 
 ### Essential Security
-- [x] **Never commit `.env`** - contains secrets
-- [x] **Use break-glass email** - add second admin email to `emails.txt`  
-- [x] **Keep app internal** - only oauth2-proxy should be publicly accessible
-- [x] **Regular updates** - update Docker images regularly
+- **[x]** **Never commit `.env`** - contains secrets
+- **[x]** **Use break-glass email** - add second admin email to `emails.txt`  
+- **[x]** **Keep app internal** - only oauth2-proxy should be publicly accessible
+- **[x]** **Regular updates** - update Docker images regularly
 
 ### Advanced Security
-- [ROTATE] **Rotate secrets** - Google Client Secret if compromised
-- [LOG] **Monitor logs** - review access patterns
-- [MINIMAL] **Minimal scopes** - only `openid email profile`
-- [AUDIT] **Audit access** - review `emails.txt` regularly
+- **[ROTATE]** **Rotate secrets** - Google Client Secret if compromised
+- **[LOG]** **Monitor logs** - review access patterns
+- **[MINIMAL]** **Minimal scopes** - only `openid email profile`
+- **[AUDIT]** **Audit access** - review `emails.txt` regularly
 
 ---
 
 ## Use Cases & Alternatives
 
 ### When to Use This Setup
-- [x] **Personal projects** needing public access
-- [x] **Small team tools** with Google accounts
-- [x] **Proof of concepts** requiring auth
-- [x] **Self-hosted apps** behind home networks
+- **[x]** **Personal projects** needing public access
+- **[x]** **Small team tools** with Google accounts
+- **[x]** **Proof of concepts** requiring auth
+- **[x]** **Self-hosted apps** behind home networks
 
 ### Alternatives
 
@@ -269,12 +328,20 @@ shark-no-ninsho-mon/
 ├── emails.txt             # Allowed users
 ├── .env.template          # Configuration template
 ├── .gitignore            # Git ignore rules
-├── setup.ps1             # Windows setup script
-├── setup.sh              # Linux/Mac setup script
+├── setup.ps1             # Windows interactive setup script
+├── setup.sh              # Linux/Mac interactive setup script
 └── app/                   # Flask application
     ├── Dockerfile         # Python container
     ├── requirements.txt   # Python dependencies
-    └── app.py             # Flask application code
+    ├── app.py             # Flask application code
+    ├── static/            # Static web assets
+    │   ├── css/          # Stylesheets
+    │   └── js/           # JavaScript files
+    └── templates/         # HTML templates
+        ├── base.html     # Base template
+        ├── index.html    # Main page
+        ├── headers.html  # Debug headers page
+        └── ...           # Other templates
 ```
 
 ---
