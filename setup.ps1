@@ -161,28 +161,61 @@ Write-Host "====================================" -ForegroundColor Yellow
 Write-Host ""
 
 Write-Host "Current emails.txt content:"
+$currentEmails = @()
 if (Test-Path "emails.txt") {
-    Get-Content "emails.txt" | Where-Object { $_ -notmatch "^#" -and $_ -ne "" } | ForEach-Object {
-        Write-Host "  - $_" -ForegroundColor Cyan
+    Get-Content "emails.txt" | ForEach-Object {
+        # Skip comments and empty lines
+        if ($_ -notmatch "^\s*#" -and $_ -ne "" -and $_ -notmatch "^\s*$") {
+            $currentEmails += $_.Trim()
+            Write-Host "  - $_" -ForegroundColor Cyan
+        }
+    }
+    
+    if ($currentEmails.Count -eq 0) {
+        Write-Host "  (no emails configured)" -ForegroundColor Gray
     }
 } else {
     Write-Host "  (file does not exist)" -ForegroundColor Gray
 }
 
 Write-Host ""
-$configureEmails = Get-UserInput -Prompt "Do you want to add/edit authorized emails? (y/n)" -DefaultValue "y" -Required $false
+$configureEmails = Get-UserInput -Prompt "Do you want to configure authorized emails? (y/n)" -DefaultValue "y" -Required $false
 
 if ($configureEmails -eq "y" -or $configureEmails -eq "yes") {
-    $emails = @()
-    Write-Host "Enter email addresses (one per line, empty line to finish):"
+    # Ask if user wants to keep existing emails
+    if ($currentEmails.Count -gt 0) {
+        Write-Host ""
+        Write-Host "You have $($currentEmails.Count) existing email(s) configured."
+        $keepExisting = Get-UserInput -Prompt "Do you want to keep the existing emails and add more? (y/n)" -DefaultValue "y" -Required $false
+        
+        if ($keepExisting -eq "y" -or $keepExisting -eq "yes") {
+            $emails = $currentEmails.Clone()
+            Write-Host "Keeping existing emails" -ForegroundColor Green
+        } else {
+            $emails = @()
+            Write-Host "Starting with a clean email list" -ForegroundColor Yellow
+        }
+    } else {
+        $emails = @()
+    }
+    
+    Write-Host ""
+    Write-Host "Enter email addresses to add (one per line, empty line to finish):"
     
     do {
         $email = Get-UserInput -Prompt "Email" -Required $false
-        if ($email -ne "" -and $email -match "^[^@]+@[^@]+\.[^@]+$") {
-            $emails += $email
-            Write-Host "Added: $email" -ForegroundColor Green
-        } elseif ($email -ne "") {
-            Write-Host "Invalid email format, skipping: $email" -ForegroundColor Yellow
+        if ($email -ne "") {
+            if ($email -match "^[^@]+@[^@]+\.[^@]+$") {
+                # Check if email already exists
+                if ($emails -contains $email) {
+                    Write-Host "Email already exists, skipping: $email" -ForegroundColor Yellow
+                } else {
+                    $emails += $email
+                    Write-Host "Added: $email" -ForegroundColor Green
+                }
+            } else {
+                Write-Host "Invalid email format, skipping: $email" -ForegroundColor Yellow
+            }
         }
     } while ($email -ne "")
     
@@ -197,6 +230,8 @@ $($emails -join "`n")
 "@
         $emailContent | Out-File -FilePath "emails.txt" -Encoding UTF8
         Write-Host "[OK] Updated emails.txt with $($emails.Count) email(s)" -ForegroundColor Green
+    } else {
+        Write-Host "No emails configured. You may need to add emails later." -ForegroundColor Yellow
     }
 }
 

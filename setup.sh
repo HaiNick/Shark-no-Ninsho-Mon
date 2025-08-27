@@ -177,27 +177,67 @@ echo ""
 
 echo "Current emails.txt content:"
 if [ -f "emails.txt" ]; then
-    grep -v "^#" emails.txt | grep -v "^$" | while read -r email; do
-        echo -e "  - ${CYAN}$email${NC}"
-    done
+    current_emails=()
+    while IFS= read -r email; do
+        # Skip comments and empty lines
+        if [[ ! "$email" =~ ^[[:space:]]*# ]] && [[ -n "$email" ]] && [[ ! "$email" =~ ^[[:space:]]*$ ]]; then
+            current_emails+=("$email")
+            echo -e "  - ${CYAN}$email${NC}"
+        fi
+    done < "emails.txt"
+    
+    if [ ${#current_emails[@]} -eq 0 ]; then
+        echo "  (no emails configured)"
+    fi
 else
     echo "  (file does not exist)"
+    current_emails=()
 fi
 
 echo ""
-configure_emails=$(get_user_input "Do you want to add/edit authorized emails? (y/n)" "y" "false" "false")
+configure_emails=$(get_user_input "Do you want to configure authorized emails? (y/n)" "y" "false" "false")
 
 if [[ "$configure_emails" =~ ^[Yy]([Ee][Ss])?$ ]]; then
-    emails=()
-    echo "Enter email addresses (one per line, empty line to finish):"
+    # Ask if user wants to keep existing emails
+    if [ ${#current_emails[@]} -gt 0 ]; then
+        echo ""
+        echo "You have ${#current_emails[@]} existing email(s) configured."
+        keep_existing=$(get_user_input "Do you want to keep the existing emails and add more? (y/n)" "y" "false" "false")
+        
+        if [[ "$keep_existing" =~ ^[Yy]([Ee][Ss])?$ ]]; then
+            emails=("${current_emails[@]}")
+            echo -e "${GREEN}Keeping existing emails${NC}"
+        else
+            emails=()
+            echo -e "${YELLOW}Starting with a clean email list${NC}"
+        fi
+    else
+        emails=()
+    fi
+    
+    echo ""
+    echo "Enter email addresses to add (one per line, empty line to finish):"
     
     while true; do
         email=$(get_user_input "Email" "" "false" "false")
         if [ -z "$email" ]; then
             break
         elif [[ "$email" =~ ^[^@]+@[^@]+\.[^@]+$ ]]; then
-            emails+=("$email")
-            echo -e "${GREEN}Added: $email${NC}"
+            # Check if email already exists
+            email_exists=false
+            for existing_email in "${emails[@]}"; do
+                if [ "$existing_email" = "$email" ]; then
+                    email_exists=true
+                    break
+                fi
+            done
+            
+            if [ "$email_exists" = true ]; then
+                echo -e "${YELLOW}Email already exists, skipping: $email${NC}"
+            else
+                emails+=("$email")
+                echo -e "${GREEN}Added: $email${NC}"
+            fi
         else
             echo -e "${YELLOW}Invalid email format, skipping: $email${NC}"
         fi
@@ -213,6 +253,8 @@ if [[ "$configure_emails" =~ ^[Yy]([Ee][Ss])?$ ]]; then
 $(printf '%s\n' "${emails[@]}")
 EOF
         echo -e "${GREEN}[OK] Updated emails.txt with ${#emails[@]} email(s)${NC}"
+    else
+        echo -e "${YELLOW}No emails configured. You may need to add emails later.${NC}"
     fi
 fi
 
