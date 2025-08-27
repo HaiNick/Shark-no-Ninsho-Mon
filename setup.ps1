@@ -266,13 +266,31 @@ $deploy = Get-UserInput -Prompt "Build and start the containers now? (y/n)" -Def
 
 if ($deploy -eq "y" -or $deploy -eq "yes") {
     Write-Host "Building and starting containers..." -ForegroundColor Green
+    
+    # Try docker compose first
     docker compose up -d --build
     
     if ($LASTEXITCODE -eq 0) {
         Write-Host "[OK] Containers started successfully" -ForegroundColor Green
     } else {
-        Write-Host "[ERROR] Failed to start containers" -ForegroundColor Red
-        exit 1
+        Write-Host "Docker compose failed, trying with elevated privileges..." -ForegroundColor Yellow
+        Write-Host "You may see a UAC prompt - please click Yes to allow elevated access" -ForegroundColor Yellow
+        
+        try {
+            # Try to run with elevated privileges
+            $process = Start-Process -FilePath "docker" -ArgumentList "compose", "up", "-d", "--build" -Verb RunAs -Wait -PassThru
+            if ($process.ExitCode -eq 0) {
+                Write-Host "[OK] Containers started successfully with elevated privileges" -ForegroundColor Green
+                Write-Host "Note: Docker required elevated privileges" -ForegroundColor Yellow
+            } else {
+                Write-Host "[ERROR] Failed to start containers even with elevated privileges" -ForegroundColor Red
+                exit 1
+            }
+        } catch {
+            Write-Host "[ERROR] Failed to start containers with elevated privileges" -ForegroundColor Red
+            Write-Host "Please try running this script as Administrator" -ForegroundColor Yellow
+            exit 1
+        }
     }
 }
 
@@ -289,11 +307,31 @@ if ($startFunnel -eq "y" -or $startFunnel -eq "yes") {
     Write-Host ""
     Write-Host "Your app will be available at: $funnelHost" -ForegroundColor Cyan
     Write-Host ""
-    tailscale funnel 4180
+    
+    # Try tailscale funnel first
+    $funnelProcess = Start-Process -FilePath "tailscale" -ArgumentList "funnel", "4180" -PassThru -NoNewWindow
+    Start-Sleep -Seconds 2
+    
+    # Check if the process is still running (indicates success)
+    if (-not $funnelProcess.HasExited) {
+        Write-Host "Tailscale Funnel started successfully" -ForegroundColor Green
+        Wait-Process -InputObject $funnelProcess
+    } else {
+        Write-Host "Tailscale Funnel failed, trying with elevated privileges..." -ForegroundColor Yellow
+        Write-Host "You may see a UAC prompt - please click Yes to allow elevated access" -ForegroundColor Yellow
+        
+        try {
+            Start-Process -FilePath "tailscale" -ArgumentList "funnel", "4180" -Verb RunAs -Wait
+        } catch {
+            Write-Host "[ERROR] Failed to start Tailscale Funnel even with elevated privileges" -ForegroundColor Red
+            Write-Host "Please try running 'tailscale set --operator=$env:USERNAME' as Administrator first" -ForegroundColor Yellow
+        }
+    }
 } else {
     Write-Host ""
     Write-Host "To start Tailscale Funnel manually, run:" -ForegroundColor Yellow
     Write-Host "tailscale funnel 4180" -ForegroundColor White
+    Write-Host "If that fails, try running as Administrator" -ForegroundColor Yellow
     Write-Host ""
     Write-Host "Your app will be available at: $funnelHost" -ForegroundColor Cyan
 }
@@ -309,4 +347,6 @@ Write-Host "Troubleshooting:"
 Write-Host "- Check container logs: docker compose logs"
 Write-Host "- Restart services: docker compose restart"
 Write-Host "- View Tailscale status: tailscale status"
+Write-Host "- Start funnel manually: tailscale funnel 4180 (try as Administrator if it fails)"
+Write-Host "- Set operator permissions: tailscale set --operator=$env:USERNAME (as Administrator)"
 Write-Host ""

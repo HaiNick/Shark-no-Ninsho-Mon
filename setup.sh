@@ -290,17 +290,39 @@ deploy=$(get_user_input "Build and start the containers now? (y/n)" "y" "false" 
 if [[ "$deploy" =~ ^[Yy]([Ee][Ss])?$ ]]; then
     echo -e "${GREEN}Building and starting containers...${NC}"
     
-    # Use docker compose or docker-compose
+    # Try docker compose first, then with sudo if it fails
+    docker_success=false
+    
     if docker compose version >/dev/null 2>&1; then
         docker compose up -d --build
+        if [ $? -eq 0 ]; then
+            docker_success=true
+        else
+            echo -e "${YELLOW}Docker compose failed, trying with sudo...${NC}"
+            sudo docker compose up -d --build
+            if [ $? -eq 0 ]; then
+                docker_success=true
+                echo -e "${YELLOW}Note: Docker required sudo privileges${NC}"
+            fi
+        fi
     else
         docker-compose up -d --build
+        if [ $? -eq 0 ]; then
+            docker_success=true
+        else
+            echo -e "${YELLOW}Docker compose failed, trying with sudo...${NC}"
+            sudo docker-compose up -d --build
+            if [ $? -eq 0 ]; then
+                docker_success=true
+                echo -e "${YELLOW}Note: Docker required sudo privileges${NC}"
+            fi
+        fi
     fi
     
-    if [ $? -eq 0 ]; then
+    if [ "$docker_success" = true ]; then
         echo -e "${GREEN}[OK] Containers started successfully${NC}"
     else
-        echo -e "${RED}[ERROR] Failed to start containers${NC}"
+        echo -e "${RED}[ERROR] Failed to start containers even with sudo${NC}"
         exit 1
     fi
 fi
@@ -318,11 +340,26 @@ if [[ "$start_funnel" =~ ^[Yy]([Ee][Ss])?$ ]]; then
     echo ""
     echo -e "Your app will be available at: ${CYAN}$funnel_host${NC}"
     echo ""
-    tailscale funnel 4180
+    
+    # Try tailscale funnel first, then with sudo if it fails
+    tailscale funnel 4180 &
+    funnel_pid=$!
+    sleep 2
+    
+    # Check if the process is still running (indicates success)
+    if kill -0 $funnel_pid 2>/dev/null; then
+        echo -e "${GREEN}Tailscale Funnel started successfully${NC}"
+        wait $funnel_pid
+    else
+        echo -e "${YELLOW}Tailscale Funnel failed, trying with sudo...${NC}"
+        echo -e "${YELLOW}You may be prompted for your password${NC}"
+        sudo tailscale funnel 4180
+    fi
 else
     echo ""
     echo -e "${YELLOW}To start Tailscale Funnel manually, run:${NC}"
     echo "tailscale funnel 4180"
+    echo -e "${YELLOW}If that fails, try: sudo tailscale funnel 4180${NC}"
     echo ""
     echo -e "Your app will be available at: ${CYAN}$funnel_host${NC}"
 fi
@@ -335,7 +372,9 @@ echo "Your secure web app is ready!"
 echo -e "Access URL: ${CYAN}$funnel_host${NC}"
 echo ""
 echo "Troubleshooting:"
-echo "- Check container logs: docker compose logs"
-echo "- Restart services: docker compose restart"
+echo "- Check container logs: docker compose logs (or: sudo docker compose logs)"
+echo "- Restart services: docker compose restart (or: sudo docker compose restart)"
 echo "- View Tailscale status: tailscale status"
+echo "- Start funnel manually: tailscale funnel 4180 (or: sudo tailscale funnel 4180)"
+echo "- Set operator permissions: sudo tailscale set --operator=\$USER"
 echo ""
