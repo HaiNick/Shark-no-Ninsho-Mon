@@ -115,10 +115,19 @@ $clientSecret = Get-UserInput -Prompt "Google OAuth2 Client Secret" -Required $t
 
 Write-Host ""
 Write-Host "Please provide your Tailscale Funnel configuration."
-Write-Host "Example: myapp.mytailnet.ts.net"
+Write-Host "Example: sharky.snowy-burbot.ts.net"
 Write-Host ""
 
-$hostname = Get-UserInput -Prompt "Your Tailscale hostname (without https://)" -Required $true
+do {
+    $hostname = Get-UserInput -Prompt "Your Tailscale hostname (full domain)" -Required $true
+    
+    # Validate that it's a proper .ts.net domain
+    if ($hostname -match "^[^.]+\.[^.]+\.ts\.net$") {
+        break
+    } else {
+        Write-Host "Please provide the full hostname format: hostname.tailnet.ts.net" -ForegroundColor Red
+    }
+} while ($true)
 $funnelHost = "https://$hostname"
 $funnelHostname = $hostname
 

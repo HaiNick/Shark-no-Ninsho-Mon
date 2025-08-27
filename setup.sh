@@ -36,8 +36,13 @@ get_user_input() {
         fi
         
         if [ "$secret" = "true" ]; then
-            read -s -p "$display_prompt" input
+            # Use printf instead of echo -n for better compatibility
+            printf "%s" "$display_prompt"
+            # Read with -r to prevent backslash interpretation and trim newlines
+            IFS= read -rs input
             echo "" # New line after hidden input
+            # Remove any trailing carriage return or newline characters
+            input=$(printf '%s' "$input" | tr -d '\r\n')
         else
             read -p "$display_prompt" input
         fi
@@ -131,10 +136,19 @@ client_secret=$(get_user_input "Google OAuth2 Client Secret" "" "true" "true")
 
 echo ""
 echo "Please provide your Tailscale Funnel configuration."
-echo "Example: myapp.mytailnet.ts.net"
+echo "Example: sharky.snowy-burbot.ts.net"
 echo ""
 
-hostname=$(get_user_input "Your Tailscale hostname (without https://)" "" "true" "false")
+while true; do
+    hostname=$(get_user_input "Your Tailscale hostname (full domain)" "" "true" "false")
+    
+    # Validate that it's a proper .ts.net domain
+    if [[ $hostname =~ ^[^.]+\.[^.]+\.ts\.net$ ]]; then
+        break
+    else
+        echo -e "${RED}Please provide the full hostname format: hostname.tailnet.ts.net${NC}"
+    fi
+done
 funnel_host="https://$hostname"
 funnel_hostname="$hostname"
 
@@ -148,15 +162,15 @@ cat > .env << EOF
 # DO NOT commit this file to version control!
 
 # Google OAuth2 Client Credentials
-OAUTH2_PROXY_CLIENT_ID=$client_id
-OAUTH2_PROXY_CLIENT_SECRET=$client_secret
+OAUTH2_PROXY_CLIENT_ID=${client_id}
+OAUTH2_PROXY_CLIENT_SECRET=${client_secret}
 
 # Cookie Secret (32 random bytes, base64 encoded)
-OAUTH2_PROXY_COOKIE_SECRET=$cookie_secret
+OAUTH2_PROXY_COOKIE_SECRET=${cookie_secret}
 
 # Tailscale Funnel Configuration
-FUNNEL_HOST=$funnel_host
-FUNNEL_HOSTNAME=$funnel_hostname
+FUNNEL_HOST=${funnel_host}
+FUNNEL_HOSTNAME=${funnel_hostname}
 EOF
 
 echo -e "${GREEN}[OK] Created .env file with your configuration${NC}"

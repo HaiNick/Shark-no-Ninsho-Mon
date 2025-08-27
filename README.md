@@ -20,6 +20,7 @@ cd Shark-no-Ninsho-Mon
 .\setup.ps1
 
 # Linux/Mac:
+chmod +x setup.sh
 ./setup.sh
 
 # 3. Follow the guided prompts for:
@@ -61,10 +62,11 @@ tailscale funnel 4180
 Ensure you have these installed and configured:
 
 - [x] **Tailscale** - installed, logged in, with Funnel enabled
-- [x] **Docker & Docker Compose** - for containerized deployment  
+- [x] **Docker & Docker Compose** - for containerized deployment
 - [x] **Google Account** - for OAuth authentication
 
 **Verification Commands:**
+
 ```bash
 tailscale status
 docker --version
@@ -86,6 +88,7 @@ Internet Users
 ```
 
 **Security Model:**
+
 - **[LOCKED]** All traffic goes through Google OAuth
 - **[GLOBE]** Only oauth2-proxy is exposed publicly (via Funnel)
 - **[KEY]** Flask app is internal-only (no direct internet access)
@@ -100,11 +103,13 @@ Internet Users
 The included setup scripts will guide you through the entire configuration process:
 
 **Windows Users:**
+
 ```powershell
 .\setup.ps1
 ```
 
 **Linux/Mac Users:**
+
 ```bash
 # Make executable and run
 chmod +x setup.sh
@@ -112,6 +117,7 @@ chmod +x setup.sh
 ```
 
 **What the interactive setup does:**
+
 - **[CHECK]** Verifies all prerequisites (Docker, Tailscale, etc.)
 - **[GENERATE]** Creates secure cookie secrets automatically
 - **[INPUT]** Prompts for Google OAuth2 credentials
@@ -126,6 +132,7 @@ chmod +x setup.sh
 If you prefer manual setup or need to modify an existing configuration:
 
 #### 1. Google OAuth Setup
+
 1. **Google Cloud Console** -> Create/Select Project
 2. **OAuth Consent Screen:**
    - User Type: `External`
@@ -146,6 +153,7 @@ cp .env.template .env
 ```
 
 Required variables in `.env`:
+
 ```bash
 OAUTH2_PROXY_CLIENT_ID=your-google-client-id
 OAUTH2_PROXY_CLIENT_SECRET=your-google-client-secret
@@ -155,6 +163,7 @@ FUNNEL_HOSTNAME=your-host.your-tailnet.ts.net
 ```
 
 **Generate Cookie Secret:**
+
 ```bash
 # Linux/Mac
 head -c 32 /dev/urandom | base64
@@ -170,6 +179,7 @@ head -c 32 /dev/urandom | base64
 #### 3. User Access Control
 
 Edit `emails.txt` with allowed Google accounts:
+
 ```
 your.primary@gmail.com
 colleague@company.com
@@ -209,7 +219,9 @@ tailscale funnel status
 ## Testing & Verification
 
 ### Web Testing
+
 1. **Main App:** `https://your-host.your-tailnet.ts.net`
+
    - Should redirect to Google login
    - Sign in with allowed email
    - See "It works" page with your email
@@ -219,6 +231,7 @@ tailscale funnel status
    - `https://your-host.your-tailnet.ts.net/headers` - Authentication headers
 
 ### CLI Verification
+
 ```bash
 # Check Funnel status
 tailscale funnel status
@@ -236,6 +249,7 @@ docker compose logs app
 ## Stopping & Cleanup
 
 ### Stop Public Access
+
 ```bash
 # Turn off Funnel
 tailscale funnel off
@@ -245,6 +259,7 @@ tailscale funnel status
 ```
 
 ### Stop Services
+
 ```bash
 # Stop containers (keep data)
 docker compose stop
@@ -262,14 +277,15 @@ docker compose down --volumes --rmi local
 
 ### Common Issues
 
-| Problem | Solution |
-|---------|----------|
-| `redirect_uri_mismatch` | Ensure Google Console redirect URI exactly matches `FUNNEL_HOST/oauth2/callback` |
-| Headers missing in app | Verify `OAUTH2_PROXY_PASS_USER_HEADERS=true` and `OAUTH2_PROXY_SET_XAUTHREQUEST=true` |
-| Bypass security risk | Never add `ports:` to app service - only `expose:` allowed |
-| 7-day re-consent | Switch OAuth consent screen from Testing to Production |
+| Problem                 | Solution                                                                              |
+| ----------------------- | ------------------------------------------------------------------------------------- |
+| `redirect_uri_mismatch` | Ensure Google Console redirect URI exactly matches `FUNNEL_HOST/oauth2/callback`      |
+| Headers missing in app  | Verify `OAUTH2_PROXY_PASS_USER_HEADERS=true` and `OAUTH2_PROXY_SET_XAUTHREQUEST=true` |
+| Bypass security risk    | Never add `ports:` to app service - only `expose:` allowed                            |
+| 7-day re-consent        | Switch OAuth consent screen from Testing to Production                                |
 
 ### Debug Commands
+
 ```bash
 # Check oauth2-proxy logs
 docker compose logs -f oauth2-proxy
@@ -287,12 +303,14 @@ docker compose exec oauth2-proxy wget -qO- http://app:8000/headers
 ## Security Best Practices
 
 ### Essential Security
+
 - **[x]** **Never commit `.env`** - contains secrets
-- **[x]** **Use break-glass email** - add second admin email to `emails.txt`  
+- **[x]** **Use break-glass email** - add second admin email to `emails.txt`
 - **[x]** **Keep app internal** - only oauth2-proxy should be publicly accessible
 - **[x]** **Regular updates** - update Docker images regularly
 
 ### Advanced Security
+
 - **[ROTATE]** **Rotate secrets** - Google Client Secret if compromised
 - **[LOG]** **Monitor logs** - review access patterns
 - **[MINIMAL]** **Minimal scopes** - only `openid email profile`
@@ -303,6 +321,7 @@ docker compose exec oauth2-proxy wget -qO- http://app:8000/headers
 ## Use Cases & Alternatives
 
 ### When to Use This Setup
+
 - **[x]** **Personal projects** needing public access
 - **[x]** **Small team tools** with Google accounts
 - **[x]** **Proof of concepts** requiring auth
@@ -310,12 +329,12 @@ docker compose exec oauth2-proxy wget -qO- http://app:8000/headers
 
 ### Alternatives
 
-| Scenario | Alternative |
-|----------|------------|
-| **Private only** | Skip Funnel, use `tailscale serve` with Tailscale identity |
-| **Complex policies** | Use enterprise access broker (Cloudflare Access, etc.) |
-| **Many users** | Consider dedicated identity provider (Auth0, etc.) |
-| **High availability** | Use cloud load balancer + managed OAuth |
+| Scenario              | Alternative                                                |
+| --------------------- | ---------------------------------------------------------- |
+| **Private only**      | Skip Funnel, use `tailscale serve` with Tailscale identity |
+| **Complex policies**  | Use enterprise access broker (Cloudflare Access, etc.)     |
+| **Many users**        | Consider dedicated identity provider (Auth0, etc.)         |
+| **High availability** | Use cloud load balancer + managed OAuth                    |
 
 ---
 
