@@ -120,7 +120,8 @@ gen_cookie_secret() {
   # verify decoded length is 16, 24, or 32 bytes
   if [ -n "$s" ]; then
     # some base64 tools need -d vs --decode; prefer -d
-    if decoded_len=$(printf '%s' "$s" | tr '-_' '+/' | base64 -d 2>/dev/null | wc -c); then
+    # Convert URL-safe back to standard base64 for decoding
+    if decoded_len=$(printf '%s' "$s" | tr '_-' '/+' | base64 -d 2>/dev/null | wc -c); then
       case "$decoded_len" in
         16|24|32)
           printf '%s' "$s"
