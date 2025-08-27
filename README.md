@@ -20,7 +20,11 @@ cd Shark-no-Ninsho-Mon
 .\setup.ps1
 
 # Linux/Mac:
+<<<<<<< HEAD
 chmod +x setup.sh
+=======
+chmod +x ./setup.sh
+>>>>>>> 085d57ccb1e371a0c1817a76f60455b4e815af74
 ./setup.sh
 
 # 3. Follow the guided prompts for:

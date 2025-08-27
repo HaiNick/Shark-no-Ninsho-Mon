@@ -24,9 +24,9 @@ function Get-UserInput {
     
     do {
         if ($DefaultValue -ne "") {
-            $displayPrompt = "$Prompt [$DefaultValue]: "
+            $displayPrompt = "$Prompt [$DefaultValue]" + ": "
         } else {
-            $displayPrompt = "$Prompt: "
+            $displayPrompt = "$Prompt" + ": "
         }
         
         if ($Secret) {
