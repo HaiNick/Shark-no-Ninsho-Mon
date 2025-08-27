@@ -107,14 +107,18 @@ echo -e "${YELLOW}==============================${NC}"
 echo ""
 
 if command_exists openssl; then
-    cookie_secret=$(openssl rand -base64 32)
+    cookie_secret=$(openssl rand -hex 32)
     echo -e "${GREEN}Generated secure cookie secret: $cookie_secret${NC}"
-elif [ -r /dev/urandom ] && command_exists base64; then
-    cookie_secret=$(head -c 32 /dev/urandom | base64)
+elif [ -r /dev/urandom ] && command_exists hexdump; then
+    cookie_secret=$(head -c 32 /dev/urandom | hexdump -v -e '/1 "%02x"')
+    echo -e "${GREEN}Generated secure cookie secret: $cookie_secret${NC}"
+elif [ -r /dev/urandom ] && command_exists od; then
+    cookie_secret=$(head -c 32 /dev/urandom | od -A n -t x1 | tr -d ' \n')
     echo -e "${GREEN}Generated secure cookie secret: $cookie_secret${NC}"
 else
     echo -e "${RED}[ERROR] Cannot generate cookie secret automatically.${NC}"
-    cookie_secret=$(get_user_input "Please enter a 32-byte base64 cookie secret" "" "true" "false")
+    echo -e "${YELLOW}Please enter a 64-character hex string (32 bytes):${NC}"
+    cookie_secret=$(get_user_input "Cookie secret (hex)" "" "true" "false")
 fi
 
 echo ""
@@ -226,7 +230,7 @@ fi
     echo "OAUTH2_PROXY_CLIENT_ID=$final_client_id"
     echo "OAUTH2_PROXY_CLIENT_SECRET=$final_client_secret"
     echo ""
-    echo "# Cookie Secret (32 random bytes, base64 encoded)"
+    echo "# Cookie Secret (32 random bytes, hex encoded)"
     echo "OAUTH2_PROXY_COOKIE_SECRET=$final_cookie_secret"
     echo ""
     echo "# Tailscale Funnel Configuration"
@@ -260,10 +264,16 @@ if [ -f ".env" ]; then
     if ! grep -q "^OAUTH2_PROXY_COOKIE_SECRET=" .env; then
         echo -e "${YELLOW}Missing OAUTH2_PROXY_COOKIE_SECRET${NC}"
         if command_exists openssl; then
-            final_cookie_secret=$(openssl rand -base64 32)
+            final_cookie_secret=$(openssl rand -hex 32)
+            echo -e "${GREEN}Generated new cookie secret${NC}"
+        elif [ -r /dev/urandom ] && command_exists hexdump; then
+            final_cookie_secret=$(head -c 32 /dev/urandom | hexdump -v -e '/1 "%02x"')
+            echo -e "${GREEN}Generated new cookie secret${NC}"
+        elif [ -r /dev/urandom ] && command_exists od; then
+            final_cookie_secret=$(head -c 32 /dev/urandom | od -A n -t x1 | tr -d ' \n')
             echo -e "${GREEN}Generated new cookie secret${NC}"
         else
-            final_cookie_secret=$(get_user_input "Please enter a 32-byte base64 cookie secret" "" "true" "false")
+            final_cookie_secret=$(get_user_input "Please enter a 64-character hex string (32 bytes)" "" "true" "false")
         fi
         needs_update=true
     fi
@@ -305,7 +315,7 @@ if [ -f ".env" ]; then
             echo "OAUTH2_PROXY_CLIENT_ID=$final_client_id"
             echo "OAUTH2_PROXY_CLIENT_SECRET=$final_client_secret"
             echo ""
-            echo "# Cookie Secret (32 random bytes, base64 encoded)"
+            echo "# Cookie Secret (32 random bytes, hex encoded)"
             echo "OAUTH2_PROXY_COOKIE_SECRET=$final_cookie_secret"
             echo ""
             echo "# Tailscale Funnel Configuration"

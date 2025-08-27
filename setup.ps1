@@ -94,11 +94,14 @@ Write-Host "==============================" -ForegroundColor Yellow
 Write-Host ""
 
 try {
-    $cookieSecret = [System.Convert]::ToBase64String((1..32 | ForEach-Object { Get-Random -Maximum 256 }))
+    # Generate 32 random bytes and convert to hex string
+    $bytes = 1..32 | ForEach-Object { Get-Random -Maximum 256 }
+    $cookieSecret = ($bytes | ForEach-Object { $_.ToString("x2") }) -join ""
     Write-Host "Generated secure cookie secret: $cookieSecret" -ForegroundColor Green
 } catch {
     Write-Host "[ERROR] Cannot generate cookie secret automatically." -ForegroundColor Red
-    $cookieSecret = Get-UserInput -Prompt "Please enter a 32-byte base64 cookie secret" -Required $true
+    Write-Host "Please enter a 64-character hex string (32 bytes):" -ForegroundColor Yellow
+    $cookieSecret = Get-UserInput -Prompt "Cookie secret (hex)" -Required $true
 }
 
 Write-Host ""
@@ -210,7 +213,7 @@ $envLines = @(
     "OAUTH2_PROXY_CLIENT_ID=$finalClientId",
     "OAUTH2_PROXY_CLIENT_SECRET=$finalClientSecret",
     "",
-    "# Cookie Secret (32 random bytes, base64 encoded)",
+    "# Cookie Secret (32 random bytes, hex encoded)",
     "OAUTH2_PROXY_COOKIE_SECRET=$finalCookieSecret",
     "",
     "# Tailscale Funnel Configuration",
@@ -243,10 +246,13 @@ if (Test-Path ".env") {
     if (-not ($envContent | Where-Object { $_ -match "^OAUTH2_PROXY_COOKIE_SECRET=" })) {
         Write-Host "Missing OAUTH2_PROXY_COOKIE_SECRET" -ForegroundColor Yellow
         try {
-            $finalCookieSecret = [System.Convert]::ToBase64String((1..32 | ForEach-Object { Get-Random -Maximum 256 }))
+            # Generate 32 random bytes and convert to hex string
+            $bytes = 1..32 | ForEach-Object { Get-Random -Maximum 256 }
+            $finalCookieSecret = ($bytes | ForEach-Object { $_.ToString("x2") }) -join ""
             Write-Host "Generated new cookie secret" -ForegroundColor Green
         } catch {
-            $finalCookieSecret = Get-UserInput -Prompt "Please enter a 32-byte base64 cookie secret" -Required $true
+            Write-Host "Please enter a 64-character hex string (32 bytes):" -ForegroundColor Yellow
+            $finalCookieSecret = Get-UserInput -Prompt "Cookie secret (hex)" -Required $true
         }
         $needsUpdate = $true
     }
@@ -288,7 +294,7 @@ if (Test-Path ".env") {
             "OAUTH2_PROXY_CLIENT_ID=$finalClientId",
             "OAUTH2_PROXY_CLIENT_SECRET=$finalClientSecret",
             "",
-            "# Cookie Secret (32 random bytes, base64 encoded)",
+            "# Cookie Secret (32 random bytes, hex encoded)",
             "OAUTH2_PROXY_COOKIE_SECRET=$finalCookieSecret",
             "",
             "# Tailscale Funnel Configuration",
