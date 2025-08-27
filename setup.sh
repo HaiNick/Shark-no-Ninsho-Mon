@@ -36,24 +36,10 @@ get_user_input() {
         fi
         
         if [ "$secret" = "true" ]; then
-            # Use printf instead of echo -n for better compatibility
-            printf "%s" "$display_prompt"
-            # Use readline for better input handling, but silent for secrets
-            if command -v bash >/dev/null 2>&1 && [ -n "$BASH_VERSION" ]; then
-                read -e -r -s input
-            else
-                read -r -s input
-            fi
+            read -r -s -p "$display_prompt" input
             echo "" # New line after hidden input
-            # Remove any trailing carriage return or newline characters
-            input=$(printf '%s' "$input" | tr -d '\r\n')
         else
-            # Use readline for better input handling with history and editing
-            if command -v bash >/dev/null 2>&1 && [ -n "$BASH_VERSION" ]; then
-                read -e -r -p "$display_prompt" input
-            else
-                read -r -p "$display_prompt" input
-            fi
+            read -r -p "$display_prompt" input
         fi
         
         if [ -z "$input" ] && [ -n "$default_value" ]; then
