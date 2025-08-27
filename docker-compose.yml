@@ -5,6 +5,8 @@ services:
     build: ./app
     expose:
       - "8000"              # internal only; do not publish
+    volumes:
+      - ./emails.txt:/app/emails.txt:ro
     restart: unless-stopped
 
   oauth2-proxy:
