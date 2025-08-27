@@ -106,16 +106,41 @@ echo -e "${YELLOW}STEP 2: Generate Cookie Secret${NC}"
 echo -e "${YELLOW}==============================${NC}"
 echo ""
 
-if command_exists openssl; then
-    cookie_secret=$(openssl rand -base64 32)
-    echo -e "${GREEN}Generated secure cookie secret: $cookie_secret${NC}"
-elif [ -r /dev/urandom ] && command_exists base64; then
-    cookie_secret=$(head -c 32 /dev/urandom | base64)
-    echo -e "${GREEN}Generated secure cookie secret: $cookie_secret${NC}"
+# expects: command_exists(), GREEN/RED/YELLOW/NC set
+gen_cookie_secret() {
+  local s=""
+  # try OpenSSL first
+  if command_exists openssl; then
+    # 32 raw bytes -> Base64 (URL-safe), single line, no newline
+    s="$(openssl rand 32 | base64 | tr -d '\n' | tr '+/' '-_')"
+  elif [ -r /dev/urandom ] && command_exists base64; then
+    s="$(head -c 32 /dev/urandom | base64 | tr -d '\n' | tr '+/' '-_')"
+  fi
+
+  # verify decoded length is 16, 24, or 32 bytes
+  if [ -n "$s" ]; then
+    # some base64 tools need -d vs --decode; prefer -d
+    if decoded_len=$(printf '%s' "$s" | tr '-_' '+/' | base64 -d 2>/dev/null | wc -c); then
+      case "$decoded_len" in
+        16|24|32)
+          printf '%s' "$s"
+          return 0
+          ;;
+      esac
+    fi
+  fi
+  return 1
+}
+
+if cookie_secret="$(gen_cookie_secret)"; then
+  echo -e "${GREEN}Generated secure cookie secret (Base64 URL-safe):${NC} $cookie_secret"
+  echo "Use it like this:"
+  echo "  env:   OAUTH2_PROXY_COOKIE_SECRET=$cookie_secret"
+  echo "  or cfg: cookie_secret = \"$cookie_secret\""
 else
-    echo -e "${RED}[ERROR] Cannot generate cookie secret automatically.${NC}"
-    echo -e "${YELLOW}Please enter a 32-byte base64 cookie secret:${NC}"
-    cookie_secret=$(get_user_input "Cookie secret (base64)" "" "true" "false")
+  echo -e "${RED}[ERROR] Could not generate a valid cookie secret automatically.${NC}"
+  echo -e "${YELLOW}Please provide a Base64 (URL-safe) value whose decoded length is 16, 24, or 32 bytes.${NC}"
+  cookie_secret="$(get_user_input 'Cookie secret (base64)' '' 'true' 'false')"
 fi
 
 echo ""
@@ -260,14 +285,12 @@ if [ -f ".env" ]; then
     
     if ! grep -q "^OAUTH2_PROXY_COOKIE_SECRET=" .env; then
         echo -e "${YELLOW}Missing OAUTH2_PROXY_COOKIE_SECRET${NC}"
-        if command_exists openssl; then
-            final_cookie_secret=$(openssl rand -base64 32)
-            echo -e "${GREEN}Generated new cookie secret${NC}"
-        elif [ -r /dev/urandom ] && command_exists base64; then
-            final_cookie_secret=$(head -c 32 /dev/urandom | base64)
-            echo -e "${GREEN}Generated new cookie secret${NC}"
+        if final_cookie_secret="$(gen_cookie_secret)"; then
+            echo -e "${GREEN}Generated new cookie secret (Base64 URL-safe)${NC}"
         else
-            final_cookie_secret=$(get_user_input "Please enter a 32-byte base64 cookie secret" "" "true" "false")
+            echo -e "${RED}[ERROR] Could not generate a valid cookie secret automatically.${NC}"
+            echo -e "${YELLOW}Please provide a Base64 (URL-safe) value whose decoded length is 16, 24, or 32 bytes.${NC}"
+            final_cookie_secret="$(get_user_input 'Please enter a cookie secret (base64)' '' 'true' 'false')"
         fi
         needs_update=true
     fi
@@ -496,30 +519,49 @@ start_funnel=$(get_user_input "Start Tailscale Funnel now? (y/n)" "y" "false" "f
 
 if [[ "$start_funnel" =~ ^[Yy]([Ee][Ss])?$ ]]; then
     echo -e "${GREEN}Starting Tailscale Funnel on port 4180...${NC}"
-    echo -e "${YELLOW}Note: This will run in the background. Use Ctrl+C to stop.${NC}"
     echo ""
     echo -e "Your app will be available at: ${CYAN}$funnel_host${NC}"
     echo ""
     
     # Try tailscale funnel first, then with sudo if it fails
-    tailscale funnel 4180 &
-    funnel_pid=$!
-    sleep 2
+    echo -e "${YELLOW}Attempting to start Tailscale Funnel...${NC}"
     
-    # Check if the process is still running (indicates success)
-    if kill -0 $funnel_pid 2>/dev/null; then
-        echo -e "${GREEN}Tailscale Funnel started successfully${NC}"
-        wait $funnel_pid
+    # Start funnel in background and capture output
+    if tailscale funnel 4180 > /tmp/tailscale_funnel.log 2>&1 &
+    then
+        funnel_pid=$!
+        sleep 3
+        
+        # Check if the process is still running (indicates success)
+        if kill -0 $funnel_pid 2>/dev/null; then
+            echo -e "${GREEN}[OK] Tailscale Funnel started successfully in background (PID: $funnel_pid)${NC}"
+            echo -e "${YELLOW}Funnel logs: /tmp/tailscale_funnel.log${NC}"
+        else
+            echo -e "${YELLOW}Tailscale Funnel failed, trying with sudo...${NC}"
+            echo -e "${YELLOW}You may be prompted for your password${NC}"
+            
+            # Try with sudo in background
+            sudo tailscale funnel 4180 > /tmp/tailscale_funnel_sudo.log 2>&1 &
+            sudo_funnel_pid=$!
+            sleep 3
+            
+            if kill -0 $sudo_funnel_pid 2>/dev/null; then
+                echo -e "${GREEN}[OK] Tailscale Funnel started with sudo in background (PID: $sudo_funnel_pid)${NC}"
+                echo -e "${YELLOW}Funnel logs: /tmp/tailscale_funnel_sudo.log${NC}"
+                echo -e "${YELLOW}Note: Funnel required sudo privileges${NC}"
+            else
+                echo -e "${RED}[ERROR] Failed to start Tailscale Funnel even with sudo${NC}"
+                echo -e "${YELLOW}Check logs: /tmp/tailscale_funnel.log and /tmp/tailscale_funnel_sudo.log${NC}"
+            fi
+        fi
     else
-        echo -e "${YELLOW}Tailscale Funnel failed, trying with sudo...${NC}"
-        echo -e "${YELLOW}You may be prompted for your password${NC}"
-        sudo tailscale funnel 4180
+        echo -e "${RED}[ERROR] Failed to start Tailscale Funnel command${NC}"
     fi
 else
     echo ""
     echo -e "${YELLOW}To start Tailscale Funnel manually, run:${NC}"
-    echo "tailscale funnel 4180"
-    echo -e "${YELLOW}If that fails, try: sudo tailscale funnel 4180${NC}"
+    echo "tailscale funnel 4180 &"
+    echo -e "${YELLOW}If that fails, try: sudo tailscale funnel 4180 &${NC}"
     echo ""
     echo -e "Your app will be available at: ${CYAN}$funnel_host${NC}"
 fi
@@ -535,6 +577,10 @@ echo "Troubleshooting:"
 echo "- Check container logs: docker compose logs (or: sudo docker compose logs)"
 echo "- Restart services: docker compose restart (or: sudo docker compose restart)"
 echo "- View Tailscale status: tailscale status"
-echo "- Start funnel manually: tailscale funnel 4180 (or: sudo tailscale funnel 4180)"
+echo "- Check funnel status: tailscale funnel status"
+echo "- Start funnel manually: tailscale funnel 4180 & (runs in background)"
+echo "- Start funnel with sudo: sudo tailscale funnel 4180 & (runs in background)"
+echo "- Stop funnel: pkill -f 'tailscale funnel' (or: sudo pkill -f 'tailscale funnel')"
 echo "- Set operator permissions: sudo tailscale set --operator=\$USER"
+echo "- View funnel logs: cat /tmp/tailscale_funnel.log"
 echo ""
