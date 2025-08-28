@@ -636,7 +636,7 @@ This project is licensed under the **MIT License** - see the [LICENSE](LICENSE) 
 [![Report Bug](https://img.shields.io/badge/Report-Bug-red)](https://github.com/HaiNick/Shark-no-Ninsho-Mon/issues) • 
 [![Request Feature](https://img.shields.io/badge/Request-Feature-blue)](https://github.com/HaiNick/Shark-no-Ninsho-Mon/issues)
 
-**Found this helpful? Consider giving it a ***star***
+**Found this helpful? Consider giving it a** ***star***
 
 </div>
 
