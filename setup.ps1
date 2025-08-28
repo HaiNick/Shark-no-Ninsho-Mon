@@ -1,16 +1,29 @@
 # Interactive Setup Script for Tailscale Funnel + OAuth2-Proxy + Flask
 # PowerShell version for Windows
 
+# DracWrite-Host ""
+Write-Host "${DracOrange}STEP 3: Configure Environment${Reset}"
+Write-Host "${DracOrange}============================${Reset}"
+Write-Host ""Color Definitions
+$DracRed = "`e[38;2;255;85;85m"      # #ff5555
+$DracGreen = "`e[38;2;80;250;123m"   # #50fa7b
+$DracYellow = "`e[38;2;241;250;140m" # #f1fa8c
+$DracCyan = "`e[38;2;139;233;253m"   # #8be9fd
+$DracPurple = "`e[38;2;189;147;249m" # #bd93f9
+$DracOrange = "`e[38;2;255;184;108m" # #ffb86c
+$DracPink = "`e[38;2;255;121;198m"   # #ff79c6
+$Reset = "`e[0m"
+
 # ASCII Art Header
 Write-Host ""
-Write-Host "    _____ __               __      "
-Write-Host "   / ___// /_  ____ ______/ /__    "
-Write-Host "   \__ \/ __ \/ __ \/ ___/ //_/    "
-Write-Host "  ___/ / / / / /_/ / /  / ,<       "
-Write-Host " /____/_/ /_/\__,_/_/  /_/|_|      "
-Write-Host "                                   "
-Write-Host " Shark-no-Ninsho-Mon Setup Script "
-Write-Host " ================================= "
+Write-Host "${DracPurple}    _____ __               __      ${Reset}"
+Write-Host "${DracPurple}   / ___// /_  ____ ______/ /__    ${Reset}"
+Write-Host "${DracPurple}   \__ \/ __ \/ __ \/ ___/ //_/    ${Reset}"
+Write-Host "${DracPurple}  ___/ / / / / /_/ / /  / ,<       ${Reset}"
+Write-Host "${DracPurple} /____/_/ /_/\__,_/_/  /_/|_|      ${Reset}"
+Write-Host "${DracPurple}                                   ${Reset}"
+Write-Host "${DracCyan} Shark-no-Ninsho-Mon Setup Script ${Reset}"
+Write-Host "${DracCyan} ================================= ${Reset}"
 Write-Host ""
 
 # Function to prompt for user input with validation
@@ -41,7 +54,7 @@ function Get-UserInput {
         }
         
         if ($Required -and $input -eq "") {
-            Write-Host "This field is required. Please enter a value." -ForegroundColor Red
+            Write-Host "${DracRed}This field is required. Please enter a value.${Reset}"
         }
     } while ($Required -and $input -eq "")
     
@@ -59,8 +72,8 @@ function Test-Command {
     }
 }
 
-Write-Host "STEP 1: Prerequisites Check" -ForegroundColor Yellow
-Write-Host "===========================" -ForegroundColor Yellow
+Write-Host "${DracOrange}STEP 1: Prerequisites Check${Reset}"
+Write-Host "${DracOrange}===========================${Reset}"
 Write-Host ""
 
 # Check Docker
@@ -89,8 +102,8 @@ if (Test-Command "tailscale") {
 }
 
 Write-Host ""
-Write-Host "STEP 2: Generate Cookie Secret" -ForegroundColor Yellow
-Write-Host "==============================" -ForegroundColor Yellow
+Write-Host "${DracOrange}STEP 2: Generate Cookie Secret${Reset}"
+Write-Host "${DracOrange}==============================${Reset}"
 Write-Host ""
 
 try {
@@ -498,11 +511,11 @@ if ($startFunnel -eq "y" -or $startFunnel -eq "yes") {
 }
 
 Write-Host ""
-Write-Host "Setup Complete!" -ForegroundColor Green
-Write-Host "===============" -ForegroundColor Green
+Write-Host "${DracPurple}Setup Complete!${Reset}"
+Write-Host "${DracPurple}===============${Reset}"
 Write-Host ""
-Write-Host "Your secure web app is ready!"
-Write-Host "Access URL: $funnelHost" -ForegroundColor Cyan
+Write-Host "${DracGreen}Your secure web app is ready!${Reset}"
+Write-Host "${DracCyan}Access URL: ${DracPink}$funnelHost${Reset}"
 Write-Host ""
 Write-Host "Troubleshooting:"
 Write-Host "- Check container logs: docker compose logs"

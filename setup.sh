@@ -3,21 +3,24 @@
 
 # ASCII Art Header
 echo ""
-echo "    _____ __               __      "
-echo "   / ___// /_  ____ ______/ /__    "
-echo "   \__ \/ __ \/ __ \/ ___/ //_/    "
-echo "  ___/ / / / / /_/ / /  / ,<       "
-echo " /____/_/ /_/\__,_/_/  /_/|_|      "
-echo "                                   "
-echo " Shark-no-Ninsho-Mon Setup Script "
-echo " ================================= "
+echo -e "${PURPLE}    _____ __               __      ${NC}"
+echo -e "${PURPLE}   / ___// /_  ____ ______/ /__    ${NC}"
+echo -e "${PURPLE}   \__ \/ __ \/ __ \/ ___/ //_/    ${NC}"
+echo -e "${PURPLE}  ___/ / / / / /_/ / /  / ,<       ${NC}"
+echo -e "${PURPLE} /____/_/ /_/\__,_/_/  /_/|_|      ${NC}"
+echo -e "${PURPLE}                                   ${NC}"
+echo -e "${CYAN} Shark-no-Ninsho-Mon Setup Script ${NC}"
+echo -e "${CYAN} ================================= ${NC}"
 echo ""
 
-# Colors for output
-RED='\033[0;31m'
-GREEN='\033[0;32m'
-YELLOW='\033[1;33m'
-CYAN='\033[0;36m'
+# Colors for output - Dracula Theme
+RED='\033[38;2;255;85;85m'      # Dracula Red #ff5555
+GREEN='\033[38;2;80;250;123m'   # Dracula Green #50fa7b
+YELLOW='\033[38;2;241;250;140m' # Dracula Yellow #f1fa8c
+CYAN='\033[38;2;139;233;253m'   # Dracula Cyan #8be9fd
+PURPLE='\033[38;2;189;147;249m' # Dracula Purple #bd93f9
+ORANGE='\033[38;2;255;184;108m' # Dracula Orange #ffb86c
+PINK='\033[38;2;255;121;198m'   # Dracula Pink #ff79c6
 NC='\033[0m' # No Color
 
 # Function to prompt for user input with validation
@@ -62,8 +65,8 @@ command_exists() {
     command -v "$1" >/dev/null 2>&1
 }
 
-echo -e "${YELLOW}STEP 1: Prerequisites Check${NC}"
-echo -e "${YELLOW}===========================${NC}"
+echo -e "${ORANGE}STEP 1: Prerequisites Check${NC}"
+echo -e "${ORANGE}===========================${NC}"
 echo ""
 
 # Check Docker
@@ -102,8 +105,8 @@ else
 fi
 
 echo ""
-echo -e "${YELLOW}STEP 2: Generate Cookie Secret${NC}"
-echo -e "${YELLOW}==============================${NC}"
+echo -e "${ORANGE}STEP 2: Generate Cookie Secret${NC}"
+echo -e "${ORANGE}==============================${NC}"
 echo ""
 
 # expects: command_exists(), GREEN/RED/YELLOW/NC set
@@ -145,8 +148,8 @@ else
 fi
 
 echo ""
-echo -e "${YELLOW}STEP 3: Configure Environment${NC}"
-echo -e "${YELLOW}============================${NC}"
+echo -e "${ORANGE}STEP 3: Configure Environment${NC}"
+echo -e "${ORANGE}============================${NC}"
 echo ""
 
 echo "Please provide your Google OAuth2 credentials."
@@ -180,8 +183,8 @@ funnel_host="https://$hostname"
 funnel_hostname="$hostname"
 
 echo ""
-echo -e "${YELLOW}STEP 4: Create Environment File${NC}"
-echo -e "${YELLOW}==============================${NC}"
+echo -e "${ORANGE}STEP 4: Create Environment File${NC}"
+echo -e "${ORANGE}==============================${NC}"
 echo ""
 
 # Function to read existing value from .env file
@@ -355,8 +358,8 @@ else
 fi
 
 echo ""
-echo -e "${YELLOW}STEP 5: Configure Authorized Emails${NC}"
-echo -e "${YELLOW}====================================${NC}"
+echo -e "${ORANGE}STEP 5: Configure Authorized Emails${NC}"
+echo -e "${ORANGE}====================================${NC}"
 echo ""
 
 echo "Current emails.txt content:"
@@ -443,8 +446,8 @@ EOF
 fi
 
 echo ""
-echo -e "${YELLOW}STEP 6: Google Cloud Console Configuration${NC}"
-echo -e "${YELLOW}==========================================${NC}"
+echo -e "${ORANGE}STEP 6: Google Cloud Console Configuration${NC}"
+echo -e "${ORANGE}==========================================${NC}"
 echo ""
 
 echo "IMPORTANT: Configure your Google OAuth2 client with this redirect URI:"
@@ -465,8 +468,8 @@ if [[ ! "$continue_setup" =~ ^[Yy]([Ee][Ss])?$ ]]; then
 fi
 
 echo ""
-echo -e "${YELLOW}STEP 7: Build and Deploy${NC}"
-echo -e "${YELLOW}========================${NC}"
+echo -e "${ORANGE}STEP 7: Build and Deploy${NC}"
+echo -e "${ORANGE}========================${NC}"
 echo ""
 
 deploy=$(get_user_input "Build and start the containers now? (y/n)" "y" "false" "false")
@@ -512,8 +515,8 @@ if [[ "$deploy" =~ ^[Yy]([Ee][Ss])?$ ]]; then
 fi
 
 echo ""
-echo -e "${YELLOW}STEP 8: Start Tailscale Funnel${NC}"
-echo -e "${YELLOW}==============================${NC}"
+echo -e "${ORANGE}STEP 8: Start Tailscale Funnel${NC}"
+echo -e "${ORANGE}==============================${NC}"
 echo ""
 
 start_funnel=$(get_user_input "Start Tailscale Funnel now? (y/n)" "y" "false" "false")
@@ -568,11 +571,11 @@ else
 fi
 
 echo ""
-echo -e "${GREEN}Setup Complete!${NC}"
-echo -e "${GREEN}===============${NC}"
+echo -e "${PURPLE}Setup Complete!${NC}"
+echo -e "${PURPLE}===============${NC}"
 echo ""
-echo "Your secure web app is ready!"
-echo -e "Access URL: ${CYAN}$funnel_host${NC}"
+echo -e "${GREEN}Your secure web app is ready!${NC}"
+echo -e "${CYAN}Access URL: ${PINK}$funnel_host${NC}"
 echo ""
 echo "Troubleshooting:"
 echo "- Check container logs: docker compose logs (or: sudo docker compose logs)"
