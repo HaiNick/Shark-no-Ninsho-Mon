@@ -1,3 +1,5 @@
+<a id="readme-top"></a>
+
 # Shark-no-Ninsho-Mon
 
 > **Secure Public Web Apps with Google OAuth via Tailscale Funnel**
@@ -7,7 +9,30 @@
 [![OAuth2](https://img.shields.io/badge/OAuth2-4285F4?style=for-the-badge&logo=google&logoColor=white)](https://developers.google.com/identity/protocols/oauth2)
 [![Flask](https://img.shields.io/badge/Flask-000000?style=for-the-badge&logo=flask&logoColor=white)](https://flask.palletsprojects.com/)
 
+![GitHub stars](https://img.shields.io/github/stars/HaiNick/Shark-no-Ninsho-Mon?style=social)
+![GitHub forks](https://img.shields.io/github/forks/HaiNick/Shark-no-Ninsho-Mon?style=social)
+![GitHub issues](https://img.shields.io/github/issues/HaiNick/Shark-no-Ninsho-Mon)
+![GitHub last commit](https://img.shields.io/github/last-commit/HaiNick/Shark-no-Ninsho-Mon)
+
 A **production-ready**, **zero-configuration** solution for exposing self-hosted web applications to the internet with enterprise-grade Google authentication. Built with Tailscale Funnel, OAuth2 Proxy, and Docker for maximum security and minimal setup complexity.
+
+## Table of Contents
+
+- [Features](#features)
+- [Quick Start](#quick-start)
+- [Architecture](#architecture)
+- [Prerequisites](#prerequisites)
+- [Configuration](#configuration)
+- [Deployment](#deployment)
+- [Testing & Verification](#testing--verification)
+- [Stopping & Cleanup](#stopping--cleanup)
+- [Manual Configuration](#manual-configuration)
+- [Project Structure](#project-structure)
+- [Troubleshooting](#troubleshooting)
+- [Customization](#customization)
+- [Contributing](#contributing)
+- [License](#license)
+- [Support](#support)
 
 ---
 
@@ -21,6 +46,8 @@ A **production-ready**, **zero-configuration** solution for exposing self-hosted
 - [LIGHTNING] **One-Command Deployment** - Automated setup for Linux and Windows
 - [MOBILE] **Cross-Platform Support** - Works on Linux, macOS, and Windows
 - [REFRESH] **Auto-Recovery** - Intelligent error handling and failsafes
+
+<p align="right">(<a href="#readme-top">back to top</a>)</p>
 
 ---
 
@@ -56,6 +83,8 @@ The interactive setup will guide you through:
 - [ROCKET] **Automatic container deployment**
 - [GLOBE] **Tailscale Funnel activation**
 
+<p align="right">(<a href="#readme-top">back to top</a>)</p>
+
 ### Setup Experience
 
 <details>
@@ -86,26 +115,32 @@ Generated secure cookie secret (Base64 URL-safe)
 
 </details>
 
-# 3. Setup allowed users
+### Manual Setup Steps
 
-### Edit emails.txt with allowed Google accounts
+#### 3. Setup Allowed Users
 
-# 4. Deploy
+Edit `emails.txt` with allowed Google accounts:
 
+```txt
+your.email@gmail.com
+colleague@company.com
+admin@domain.org
+```
+
+#### 4. Deploy
+
+```bash
 docker compose up -d --build
 tailscale funnel 4180
-
-# 5. Access your app
-
-### https://your-host.your-tailnet.ts.net
-
 ```
+
+#### 5. Access Your App
+
+Visit: `https://your-host.your-tailnet.ts.net`
 
 ---
 
 ## Prerequisites
-
----
 
 ## Architecture
 
@@ -122,7 +157,7 @@ graph TB
 
     OAuth -.-> Google[Google OAuth2<br/>Identity Verification]
     OAuth -.-> Emails[emails.txt<br/>Authorization List]
-````
+```
 
 **Security Flow:**
 
@@ -130,6 +165,8 @@ graph TB
 2. [LOCK] **Authentication** → OAuth2 Proxy redirects to Google login
 3. [CHECK] **Authorization** → Email verified against authorized list
 4. [SHARK] **App Access** → User granted access to your protected application
+
+<p align="right">(<a href="#readme-top">back to top</a>)</p>
 
 ---
 
@@ -167,6 +204,8 @@ sudo tailscale login
 # Tailscale - Download from https://tailscale.com/download/windows
 ```
 
+<p align="right">(<a href="#readme-top">back to top</a>)</p>
+
 ---
 
 ## Configuration
@@ -197,16 +236,31 @@ sudo tailscale login
 
 The setup script will help you configure `emails.txt` with authorized users:
 
-```
+```txt
 # Authorized emails for Shark Authentication
 user1@company.com
 user2@gmail.com
 admin@domain.org
 ```
 
-FUNNEL_HOSTNAME=your-host.your-tailnet.ts.net
+---
 
-````
+## Environment Configuration
+
+Create a `.env` file with the following variables:
+
+```bash
+# Google OAuth2 Client Credentials
+OAUTH2_PROXY_CLIENT_ID=your-client-id
+OAUTH2_PROXY_CLIENT_SECRET=your-client-secret
+
+# Cookie Secret (32 random bytes, URL-safe base64)
+OAUTH2_PROXY_COOKIE_SECRET=your-base64-cookie-secret
+
+# Tailscale Funnel Configuration
+FUNNEL_HOST=https://your-hostname.your-tailnet.ts.net
+FUNNEL_HOSTNAME=your-host.your-tailnet.ts.net
+```
 
 **Generate Cookie Secret:**
 
@@ -220,13 +274,15 @@ head -c 32 /dev/urandom | base64
 # Or use interactive setup (automatically generates)
 ./setup.sh  # Linux/Mac
 .\setup.ps1  # Windows
-````
+```
+
+<p align="right">(<a href="#readme-top">back to top</a>)</p>
 
 #### 3. User Access Control
 
 Edit `emails.txt` with allowed Google accounts:
 
-```
+```txt
 your.primary@gmail.com
 colleague@company.com
 # Add break-glass account recommended
@@ -259,6 +315,8 @@ tailscale funnel --bg 4180
 # Verify setup
 tailscale funnel status
 ```
+
+<p align="right">(<a href="#readme-top">back to top</a>)</p>
 
 ---
 
@@ -306,12 +364,13 @@ tailscale funnel status
 
 ### Stop Services
 
-````bash
+```bash
 # Stop containers (keep data)
 docker compose stop
 
 # Stop and remove containers
 docker compose down
+```
 
 ---
 
@@ -321,6 +380,7 @@ docker compose down
 <summary>Advanced users can configure manually</summary>
 
 ### Environment Variables (`.env`)
+
 ```bash
 # Google OAuth2 Client Credentials
 OAUTH2_PROXY_CLIENT_ID=your-client-id
@@ -332,7 +392,7 @@ OAUTH2_PROXY_COOKIE_SECRET=your-base64-cookie-secret
 # Tailscale Funnel Configuration
 FUNNEL_HOST=https://your-hostname.your-tailnet.ts.net
 FUNNEL_HOSTNAME=your-hostname.your-tailnet.ts.net
-````
+```
 
 ### Manual Deployment
 
@@ -517,11 +577,15 @@ git checkout -b feature/my-feature
 docker compose up -d --build  # Test deployment
 ```
 
+<p align="right">(<a href="#readme-top">back to top</a>)</p>
+
 ---
 
 ## License
 
 This project is licensed under the **MIT License** - see the [LICENSE](LICENSE) file for details.
+
+<p align="right">(<a href="#readme-top">back to top</a>)</p>
 
 ---
 
@@ -531,6 +595,8 @@ This project is licensed under the **MIT License** - see the [LICENSE](LICENSE) 
 - **[OAuth2 Proxy](https://oauth2-proxy.github.io/oauth2-proxy/)** - For robust authentication
 - **[Docker](https://www.docker.com/)** - For containerization excellence
 - **[Dracula Theme](https://draculatheme.com/)** - For beautiful terminal colors
+
+<p align="right">(<a href="#readme-top">back to top</a>)</p>
 
 ---
 
@@ -550,12 +616,28 @@ This project is licensed under the **MIT License** - see the [LICENSE](LICENSE) 
 3. [CHECK] Include relevant logs and error messages
 4. [CHECK] Specify your operating system and versions
 
+<p align="right">(<a href="#readme-top">back to top</a>)</p>
+
+---
+
+## Star History
+
+[![Star History Chart](https://api.star-history.com/svg?repos=HaiNick/Shark-no-Ninsho-Mon&type=Date)](https://star-history.com/#HaiNick/Shark-no-Ninsho-Mon&Date)
+
+<p align="right">(<a href="#readme-top">back to top</a>)</p>
+
 ---
 
 <div align="center">
 
 **Made with <3 for secure self-hosting**
 
-[Star this repo](https://github.com/HaiNick/Shark-no-Ninsho-Mon) • [Report Bug](https://github.com/HaiNick/Shark-no-Ninsho-Mon/issues) • [Request Feature](https://github.com/HaiNick/Shark-no-Ninsho-Mon/issues)
+[![Star this repo](https://img.shields.io/github/stars/HaiNick/Shark-no-Ninsho-Mon?style=social)](https://github.com/HaiNick/Shark-no-Ninsho-Mon) • 
+[![Report Bug](https://img.shields.io/badge/Report-Bug-red)](https://github.com/HaiNick/Shark-no-Ninsho-Mon/issues) • 
+[![Request Feature](https://img.shields.io/badge/Request-Feature-blue)](https://github.com/HaiNick/Shark-no-Ninsho-Mon/issues)
+
+**Found this helpful? Consider giving it a ***star***
 
 </div>
+
+<p align="right">(<a href="#readme-top">back to top</a>)</p>
