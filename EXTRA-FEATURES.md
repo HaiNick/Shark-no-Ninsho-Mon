@@ -6,6 +6,7 @@ This document covers advanced customization options for Shark-no-Ninsho-Mon, inc
 
 - [Adding Multiple Applications](#adding-multiple-applications)
   - [Method 1: Path-Based Routing (Single Domain)](#method-1-path-based-routing-single-domain)
+  - [Method 1.1: File-Based Upstream Configuration](#method-11-file-based-upstream-configuration)
   - [Method 2: Protecting External Applications (Non-Docker)](#method-2-protecting-external-applications-non-docker)
   - [Method 3: Using NGINX for Advanced Routing](#method-3-using-nginx-for-advanced-routing)
   - [Method 4: Different Authentication for Different Apps](#method-4-different-authentication-for-different-apps)
@@ -91,6 +92,195 @@ services:
 - Main app: `https://your-host.your-tailnet.ts.net/`
 - Admin app: `https://your-host.your-tailnet.ts.net/admin/`
 - API app: `https://your-host.your-tailnet.ts.net/api/`
+
+### Method 1.1: File-Based Upstream Configuration
+
+Instead of hardcoding upstreams in `docker-compose.yml`, you can manage them in a separate file for easier maintenance.
+
+**Step 1:** Create an `upstreams.txt` file:
+
+```txt
+# Upstream configuration for OAuth2 Proxy
+# Format: http://service:port/path/
+# Lines starting with # are ignored
+
+# Main application (default route)
+http://app:8000/
+
+# Admin panel (accessible via /admin/ path)
+http://admin-app:3000/admin/
+
+# API service (accessible via /api/ path)
+http://api-app:5000/api/
+
+# External service on host
+http://host.docker.internal:8080/monitoring/
+
+# External service on network
+http://192.168.1.100:3000/dashboard/
+```
+
+**Step 2:** Update `docker-compose.yml` to use the file:
+
+```yaml
+services:
+  app:
+    build: ./app
+    expose:
+      - "8000"
+    volumes:
+      - ./emails.txt:/app/emails.txt:ro
+    restart: unless-stopped
+
+  admin-app:
+    image: your-admin-app:latest
+    expose:
+      - "3000"
+    restart: unless-stopped
+
+  api-app:
+    image: your-api-app:latest
+    expose:
+      - "5000"
+    restart: unless-stopped
+
+  oauth2-proxy:
+    image: quay.io/oauth2-proxy/oauth2-proxy:v7.6.0
+    ports:
+      - "127.0.0.1:4180:4180"
+    env_file:
+      - ./.env
+    environment:
+      OAUTH2_PROXY_PROVIDER: google
+      OAUTH2_PROXY_SCOPE: "openid email profile"
+      OAUTH2_PROXY_REDIRECT_URL: "${FUNNEL_HOST}/oauth2/callback"
+      OAUTH2_PROXY_WHITELIST_DOMAINS: "${FUNNEL_HOSTNAME}"
+      # Use file-based upstream configuration
+      OAUTH2_PROXY_UPSTREAMS_FILE: "/etc/oauth2-proxy/upstreams.txt"
+      OAUTH2_PROXY_HTTP_ADDRESS: "0.0.0.0:4180"
+      OAUTH2_PROXY_REVERSE_PROXY: "true"
+      OAUTH2_PROXY_PASS_USER_HEADERS: "true"
+      OAUTH2_PROXY_PREFER_EMAIL_TO_USER: "true"
+      OAUTH2_PROXY_SET_XAUTHREQUEST: "true"
+      OAUTH2_PROXY_AUTHENTICATED_EMAILS_FILE: "/etc/oauth2-proxy/emails.txt"
+      OAUTH2_PROXY_SKIP_PROVIDER_BUTTON: "true"
+      OAUTH2_PROXY_COOKIE_SECURE: "true"
+      OAUTH2_PROXY_COOKIE_SAMESITE: "lax"
+    volumes:
+      - ./emails.txt:/etc/oauth2-proxy/emails.txt:ro
+      - ./upstreams.txt:/etc/oauth2-proxy/upstreams.txt:ro
+    depends_on:
+      - app
+      - admin-app
+      - api-app
+    restart: unless-stopped
+```
+
+**Step 3:** Alternative approach using environment file:
+
+Create `upstreams.env`:
+
+```bash
+# Upstream services configuration
+OAUTH2_PROXY_UPSTREAMS=http://app:8000/,http://admin-app:3000/admin/,http://api-app:5000/api/
+```
+
+Then reference it in `docker-compose.yml`:
+
+```yaml
+oauth2-proxy:
+  image: quay.io/oauth2-proxy/oauth2-proxy:v7.6.0
+  ports:
+    - "127.0.0.1:4180:4180"
+  env_file:
+    - ./.env
+    - ./upstreams.env  # Add upstream configuration
+  environment:
+    OAUTH2_PROXY_PROVIDER: google
+    OAUTH2_PROXY_SCOPE: "openid email profile"
+    OAUTH2_PROXY_REDIRECT_URL: "${FUNNEL_HOST}/oauth2/callback"
+    OAUTH2_PROXY_WHITELIST_DOMAINS: "${FUNNEL_HOSTNAME}"
+    # OAUTH2_PROXY_UPSTREAMS is now loaded from upstreams.env
+    OAUTH2_PROXY_HTTP_ADDRESS: "0.0.0.0:4180"
+    OAUTH2_PROXY_REVERSE_PROXY: "true"
+    OAUTH2_PROXY_PASS_USER_HEADERS: "true"
+    OAUTH2_PROXY_PREFER_EMAIL_TO_USER: "true"
+    OAUTH2_PROXY_SET_XAUTHREQUEST: "true"
+    OAUTH2_PROXY_AUTHENTICATED_EMAILS_FILE: "/etc/oauth2-proxy/emails.txt"
+    OAUTH2_PROXY_SKIP_PROVIDER_BUTTON: "true"
+    OAUTH2_PROXY_COOKIE_SECURE: "true"
+    OAUTH2_PROXY_COOKIE_SAMESITE: "lax"
+  volumes:
+    - ./emails.txt:/etc/oauth2-proxy/emails.txt:ro
+  depends_on:
+    - app
+    - admin-app
+    - api-app
+  restart: unless-stopped
+```
+
+**Benefits of File-Based Configuration:**
+
+1. **Easy Management** - Add/remove routes without touching docker-compose.yml
+2. **Version Control** - Track routing changes separately
+3. **Comments** - Document each route with comments
+4. **Reusability** - Use different upstream files for different environments
+5. **Dynamic Updates** - Change routes and restart only the proxy service
+
+**Managing Routes:**
+
+```bash
+# Add a new service route
+echo "http://new-service:4000/newapp/" >> upstreams.txt
+
+# Remove a route (edit the file)
+nano upstreams.txt
+
+# Apply changes
+docker compose restart oauth2-proxy
+
+# Or reload without full restart (if supported)
+docker compose kill -s HUP oauth2-proxy
+```
+
+**Multiple Environment Support:**
+
+```bash
+# Different files for different environments
+cp upstreams.txt upstreams.production.txt
+cp upstreams.txt upstreams.development.txt
+
+# Use environment-specific file
+ln -sf upstreams.production.txt upstreams.txt
+docker compose restart oauth2-proxy
+```
+
+**Advanced Upstream File Format:**
+
+```txt
+# upstreams-advanced.txt
+# Supports more complex routing patterns
+
+# Default app
+http://app:8000/
+
+# Admin with specific path matching
+http://admin-app:3000/admin/
+
+# API with version routing
+http://api-v1:5000/api/v1/
+http://api-v2:5001/api/v2/
+
+# External services
+http://grafana.local:3000/grafana/
+http://192.168.1.50:8080/nas/
+
+# WebSocket support (if needed)
+ws://socketio-app:3001/socket.io/
+
+# Static file server
+http://static-files:8000/static/
+```
 
 ### Method 2: Protecting External Applications (Non-Docker)
 
