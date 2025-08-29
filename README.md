@@ -678,8 +678,11 @@ This project is licensed under the **MIT License** - see the [LICENSE](LICENSE) 
 ---
 
 ## Star History
+<div align="center">
 
 [![Star History Chart](https://api.star-history.com/svg?repos=HaiNick/Shark-no-Ninsho-Mon&type=Date)](https://star-history.com/#HaiNick/Shark-no-Ninsho-Mon&Date)
+
+</div>
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
 
