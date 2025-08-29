@@ -23,15 +23,16 @@ A **production-ready**, **zero-configuration** solution for exposing self-hosted
 - [Architecture](#architecture)
 - [Prerequisites](#prerequisites)
 - [Configuration](#configuration)
+- [Environment Configuration](#environment-configuration)
 - [Deployment](#deployment)
 - [Testing & Verification](#testing--verification)
 - [Stopping & Cleanup](#stopping--cleanup)
-- [Manual Configuration](#manual-configuration)
 - [Project Structure](#project-structure)
 - [Troubleshooting](#troubleshooting)
 - [Customization](#customization)
 - [Contributing](#contributing)
 - [License](#license)
+- [Acknowledgments](#acknowledgments)
 - [Support](#support)
 
 ---
@@ -88,7 +89,7 @@ The interactive setup will guide you through:
 ### Setup Experience
 
 <details>
-<summary>Click to see the beautiful Dracula-themed setup process</summary>
+<summary>Click to see the Setup process</summary>
 
 ```
     _____ __               __
@@ -142,19 +143,65 @@ Visit: `https://your-host.your-tailnet.ts.net`
 
 ## Architecture
 
+### Infrastructure: Tailscale Funnel → OAuth2 Proxy → Flask
+
 ```mermaid
 graph TB
-    Internet[Internet Users]
-    Funnel[Tailscale Funnel<br/>your-host.tailnet.ts.net]
-    OAuth[OAuth2 Proxy<br/>Google Authentication]
-    App[Your Flask App<br/>Protected Content]
+  %% High-level infrastructure (GitHub-safe)
+  subgraph Client
+    U[Internet users]
+  end
 
-    Internet --> Funnel
-    Funnel --> OAuth
-    OAuth --> App
+  subgraph Host[Your server - Tailscale node]
+    subgraph TS[Tailscale]
+      TSd[tailscaled daemon]
+      Funnel[Tailscale Funnel]
+    end
 
-    OAuth -.-> Google[Google OAuth2<br/>Identity Verification]
-    OAuth -.-> Emails[emails.txt<br/>Authorization List]
+    subgraph DC[Docker Compose]
+      OAuth[oauth2-proxy listening on 4180]
+      App[Flask app listening on 5000]
+      Emails[(emails.txt allowlist)]
+      Env[.env with client id, client secret, cookie secret, hostname]
+    end
+  end
+
+  U -->|HTTPS| Funnel
+  Funnel -->|proxy to 4180| OAuth
+  OAuth -->|X-Forwarded-User and X-Forwarded-Email| App
+
+  OAuth -.->|/oauth2/callback| Google[Google OAuth2 identity provider]
+  OAuth -.->|allowlist check| Emails
+  Env -.-> OAuth
+  Env -.-> App
+  TSd -.-> Funnel
+
+  App -.->|/api/whoami, /headers, /health| U
+```
+
+### Request Flow: End-to-End OAuth via Tailscale Funnel
+
+```mermaid
+sequenceDiagram
+  %% End-to-end auth + proxy sequence
+  participant U as User (Browser)
+  participant F as Tailscale Funnel (HTTPS)
+  participant O as oauth2-proxy (:4180)
+  participant G as Google OAuth2 (IdP)
+  participant A as Flask App (:5000)
+  participant E as emails.txt (allowlist)
+
+  U->>F: GET https://your-host.your-tailnet.ts.net/
+  F->>O: Proxy request
+  O-->>U: 302 Redirect to Google login
+  U->>G: Authenticate (openid email)
+  G-->>O: Redirect with code
+  O->>G: Exchange code for tokens
+  O->>O: Verify email from ID token
+  O->>E: Check against allowlist
+  O-->>U: Set session cookie
+  O->>A: Forward request with auth headers
+  A-->>U: Protected content (/ , /api/whoami , /headers)
 ```
 
 **Security Flow:**
@@ -420,6 +467,7 @@ Shark-no-Ninsho-Mon/
 ├── setup.sh               # Linux/macOS setup script
 ├── setup.ps1              # Windows PowerShell setup
 ├── README.md              # This documentation
+├── EXTRA-FEATURES.md      # Advanced configuration guide
 ├── LICENSE                # MIT License
 └── app/                   # Flask application
     ├── Dockerfile          # Application container
@@ -519,10 +567,21 @@ tailscale ping $(tailscale status --json | jq -r '.Self.DNSName')
 **Replace the Flask app** with your own application:
 
 1. **Modify `app/app.py`** with your application logic
-2. **Update `app/requirements.txt`** with your dependencies
+2. **Update `app/requirements.txt`** with your dependencies  
 3. **Customize `app/templates/`** with your HTML templates
 4. **Add assets to `app/static/`** for CSS/JS/images
 5. **Rebuild:** `docker compose up -d --build`
+
+### Adding Multiple Applications & Advanced Features
+
+Want to protect multiple apps, add Grafana/Jupyter, or set up complex routing? 
+
+[!] **[See EXTRA-FEATURES.md](EXTRA-FEATURES.md)** for comprehensive guides on:
+
+- **Multiple Applications** - Path-based routing, NGINX integration
+- **Popular Integrations** - Grafana, Jupyter, Portainer, Home Lab setups  
+- **Advanced Security** - Role-based access, IP restrictions, session management
+- **Configuration Examples** - Ready-to-use Docker Compose configurations
 
 ### Advanced Security
 
