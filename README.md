@@ -140,8 +140,6 @@ Visit: `https://your-host.your-tailnet.ts.net`
 
 ---
 
-## Prerequisites
-
 ## Architecture
 
 ```mermaid
