@@ -235,5 +235,5 @@ We thank the following for responsible disclosure:
 
 ---
 
-**Last Updated**: 2024-01-XX  
+**Last Updated**: 2025-09-30  
 **Version**: 2.0.0
