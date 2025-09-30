@@ -179,7 +179,7 @@ def get_real_ip():
             return ip
     
     # Fallback to Flask's remote_addr
-    fallback_ip = request.remote_addr or 'unknown'
+    fallback_ip = request.remote_addr or '127.0.0.1'
     if FLASK_ENV == 'development':
         logger.debug(f"Using fallback IP from request.remote_addr: {fallback_ip}")
     return fallback_ip
