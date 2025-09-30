@@ -43,17 +43,17 @@ class TestAuthorization:
     
     def test_is_user_authorized_valid(self, temp_emails_file):
         """Test authorization with valid email"""
-        assert is_user_authorized('test@example.com') == True
-        assert is_user_authorized('ADMIN@example.com') == True  # Case insensitive
+        assert is_user_authorized('test@example.com')
+        assert is_user_authorized('ADMIN@example.com')  # Case insensitive
     
     def test_is_user_authorized_invalid(self, temp_emails_file):
         """Test authorization with invalid email"""
-        assert is_user_authorized('hacker@evil.com') == False
+        assert not is_user_authorized('hacker@evil.com')
     
     def test_anonymous_blocked_in_production(self, temp_emails_file):
         """Test that anonymous users are blocked in production"""
         os.environ['FLASK_ENV'] = 'production'
-        assert is_user_authorized('anonymous') == False
+        assert not is_user_authorized('anonymous')
 
 class TestHealthEndpoint:
     """Test health check endpoint"""
