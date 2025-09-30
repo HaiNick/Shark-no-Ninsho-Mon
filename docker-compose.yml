@@ -7,6 +7,16 @@ services:
       - "8000"              # internal only; do not publish
     volumes:
       - ./emails.txt:/app/emails.txt:ro
+    environment:
+      - FLASK_ENV=production
+      - EMAILS_FILE_PATH=/app/emails.txt
+      - LOG_FILE_PATH=/app/access.log
+    healthcheck:
+      test: ["CMD", "python3", "-c", "import requests; requests.get('http://localhost:8000/health').raise_for_status()"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
     restart: unless-stopped
 
   oauth2-proxy:
@@ -33,5 +43,12 @@ services:
     volumes:
       - ./emails.txt:/etc/oauth2-proxy/emails.txt:ro
     depends_on:
-      - app
+      app:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:4180/ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
     restart: unless-stopped
