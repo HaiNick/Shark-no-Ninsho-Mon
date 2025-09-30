@@ -351,7 +351,7 @@ def api_logs():
             "log_count": 0,
             "timestamp": datetime.datetime.now().isoformat(),
             "error": "Log file not found"
-        }), 404
+        }), 503
     except PermissionError:
         return jsonify({
             "logs": "Permission denied",
