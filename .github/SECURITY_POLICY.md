@@ -22,8 +22,6 @@ Instead, please report them responsibly by:
 2. Click "Report a vulnerability"
 3. Fill out the security advisory form
 
-### Alternative Method: Email
-Send an email to: [security@example.com] (replace with actual email)
 
 Include the following information:
 - Type of vulnerability
