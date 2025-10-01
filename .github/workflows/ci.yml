@@ -15,12 +15,12 @@ jobs:
     - name: Check if workflow should run
       id: check
       run: |
-        if [ "${{ vars.ACTION_RUN }}" = "false" ]; then
-          echo "should-run=false" >> $GITHUB_OUTPUT
-          echo "Workflow disabled by ACTION_RUN environment variable"
-        else
+        if [ "${{ vars.ACTION_RUN }}" = "true" ]; then
           echo "should-run=true" >> $GITHUB_OUTPUT
           echo "Workflow enabled"
+        else
+          echo "should-run=false" >> $GITHUB_OUTPUT
+          echo "Workflow disabled by ACTION_RUN environment variable"
         fi
 
   test:
