@@ -87,8 +87,8 @@ body:
   - type: checkboxes
     id: terms
     attributes:
-      label: Code of Conduct
-      description: By submitting this issue, you agree to follow our [Code of Conduct](https://github.com/HaiNick/Shark-no-Ninsho-Mon/blob/main/SECURITY.md)
+      label: Security Policy
+      description: By submitting this issue, you agree to follow our [Security Policy](https://github.com/HaiNick/Shark-no-Ninsho-Mon/blob/main/SECURITY.md)
       options:
         - label: I agree to follow this project's Code of Conduct
           required: true
