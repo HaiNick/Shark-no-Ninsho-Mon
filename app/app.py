@@ -515,11 +515,6 @@ def start_health_check_worker():
         health_thread.start()
 
 
-@app.before_serving
-def _initialize_background_tasks():
-    start_health_check_worker()
-
-
 # ============================================================================
 # MAIN
 # ============================================================================

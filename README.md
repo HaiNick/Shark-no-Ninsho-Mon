@@ -88,8 +88,9 @@ Open your browser to [http://localhost:8080](http://localhost:8080) (or `http://
 
 1. Confirm Docker, Docker Compose, and Tailscale are installed and running.
 2. Paste Google OAuth2 client credentials and a Tailscale Funnel hostname.
-3. Generate secrets and save the resulting `.env`.
-4. (Optional) Start the Docker stack from the wizard once configuration is complete.
+3. **Add your authorized email address** (the Google account that will access the dashboard).
+4. Generate secrets and save the resulting `.env` and `emails.txt`.
+5. (Optional) Start the Docker stack from the wizard once configuration is complete.
 
 > **Security Note**: The wizard is accessible on your local network only. It is NOT exposed to the internet unless you explicitly configure port forwarding. No authentication is required, so only run it on trusted networks.
 

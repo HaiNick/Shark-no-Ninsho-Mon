@@ -3,8 +3,8 @@
 services:
   app:
     build: ./app
-    expose:
-      - "8000"              # internal only; do not publish
+    ports:
+      - "8000:8000"         # Expose to LAN for direct access
     volumes:
       - ./emails.txt:/app/emails.txt:ro
       - ./routes.json:/app/routes.json  # Persist route configuration
@@ -23,7 +23,7 @@ services:
   oauth2-proxy:
     image: quay.io/oauth2-proxy/oauth2-proxy:v7.6.0
     ports:
-      - "127.0.0.1:4180:4180"  # Funnel proxies to this
+      - "4180:4180"  # Expose to LAN (change to 127.0.0.1:4180:4180 for localhost only)
     env_file:
       - ./.env
     environment:
@@ -35,6 +35,8 @@ services:
       OAUTH2_PROXY_HTTP_ADDRESS: "0.0.0.0:4180"
       OAUTH2_PROXY_REVERSE_PROXY: "true"
       OAUTH2_PROXY_PASS_USER_HEADERS: "true"
+      OAUTH2_PROXY_PASS_AUTHORIZATION_HEADER: "true"
+      OAUTH2_PROXY_PASS_ACCESS_TOKEN: "true"
       OAUTH2_PROXY_PREFER_EMAIL_TO_USER: "true"
       OAUTH2_PROXY_SET_XAUTHREQUEST: "true"
       OAUTH2_PROXY_AUTHENTICATED_EMAILS_FILE: "/etc/oauth2-proxy/emails.txt"

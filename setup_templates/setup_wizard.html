@@ -447,6 +447,19 @@
                         <div class="error-message" id="tailscale-hostname-error"></div>
                     </div>
 
+                    <!-- Authorized Email Section -->
+                    <div class="form-group">
+                        <label for="authorized-email">Authorized Email Address *</label>
+                        <input 
+                            type="email" 
+                            id="authorized-email" 
+                            placeholder="your-email@gmail.com"
+                            required
+                        >
+                        <small>The Google account email that will be allowed to access the dashboard</small>
+                        <div class="error-message" id="authorized-email-error"></div>
+                    </div>
+
                     <!-- Flask App Section -->
                     <div class="form-group">
                         <label for="flask-secret-key">Flask Secret Key *</label>
@@ -726,6 +739,7 @@
                 oauth_client_secret: document.getElementById('oauth-client-secret').value,
                 oauth_cookie_secret: document.getElementById('oauth-cookie-secret').value,
                 tailscale_hostname: document.getElementById('tailscale-hostname').value,
+                authorized_email: document.getElementById('authorized-email').value,
                 flask_secret_key: document.getElementById('flask-secret-key').value,
                 dev_mode: devMode ? 'true' : 'false',
                 flask_env: devMode ? 'development' : 'production',
