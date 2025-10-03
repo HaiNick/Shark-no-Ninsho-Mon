@@ -169,6 +169,12 @@
                     <label for="target_port">Target Port *</label>
                     <input type="number" id="target_port" name="target_port" placeholder="8096" min="1" max="65535" required>
                 </div>
+                
+                <div class="form-group">
+                    <label for="target_path">Target Base Path (optional)</label>
+                    <input type="text" id="target_path" name="target_path" value="/" placeholder="/jellyfin">
+                    <small>Base path on target server (e.g., /jellyfin for Jellyfin base URL)</small>
+                </div>
             </div>
             
             <div class="form-row">

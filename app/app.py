@@ -103,7 +103,13 @@ def parse_bool(value: Any, default: bool = False) -> bool:
 
 def get_user_email():
     """Get user email from OAuth2 proxy headers"""
-    email = request.headers.get('X-Forwarded-Email', '').lower()
+    # Try multiple header variations that oauth2-proxy might use
+    email = (
+        request.headers.get('X-Forwarded-Email') or
+        request.headers.get('X-Auth-Request-Email') or
+        request.headers.get('X-Forwarded-User') or
+        ''
+    ).lower().strip()
     
     # Development mode fallback
     if not email and (os.environ.get('FLASK_ENV') == 'development' or os.environ.get('DEV_MODE') == 'true'):
@@ -131,7 +137,13 @@ def index():
     """Main dashboard"""
     email = get_user_email()
     
+    # Debug: Log all headers to troubleshoot oauth2-proxy
+    logger.debug(f"Headers received: {dict(request.headers)}")
+    logger.debug(f"X-Forwarded-Email: {request.headers.get('X-Forwarded-Email')}")
+    logger.debug(f"X-Auth-Request-Email: {request.headers.get('X-Auth-Request-Email')}")
+    
     if not is_authorized():
+        logger.warning(f"UNAUTHORIZED ACCESS - Email: {email} | Authorized emails: {len(AUTHORIZED_EMAILS)} | IP: {request.remote_addr}")
         return render_template('unauthorized.html', email=email), 403
     
     # Get enabled routes to display on dashboard

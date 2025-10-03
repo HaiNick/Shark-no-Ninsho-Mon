@@ -105,12 +105,20 @@ class ProxyHandler:
         protocol = route.get('protocol', 'http')
         ip = route['target_ip']
         port = route['target_port']
+        target_path = route.get('target_path', '').strip()
+        
+        # Ensure target_path starts with / if it exists
+        if target_path and not target_path.startswith('/'):
+            target_path = '/' + target_path
         
         # Ensure sub_path starts with /
         if sub_path and not sub_path.startswith('/'):
             sub_path = '/' + sub_path
         
-        return f"{protocol}://{ip}:{port}{sub_path}"
+        # Combine target_path and sub_path
+        full_path = target_path + sub_path
+        
+        return f"{protocol}://{ip}:{port}{full_path}"
     
     def _prepare_headers(self, route: dict) -> dict:
         """Prepare headers for the proxied request"""

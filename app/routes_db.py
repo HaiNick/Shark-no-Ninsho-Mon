@@ -42,7 +42,7 @@ class RouteManager:
                   target_port: int, protocol: str = 'http',
                   enabled: bool = True, health_check: bool = True,
                   timeout: int = 30, preserve_host: bool = False,
-                  websocket: bool = False) -> Dict:
+                  websocket: bool = False, target_path: str = '') -> Dict:
         """Add a new route"""
         # Validate inputs
         path = self.validate_path(path)
@@ -55,6 +55,7 @@ class RouteManager:
         websocket = self._coerce_bool(websocket)
         enabled = self._coerce_bool(enabled)
         health_check = self._coerce_bool(health_check)
+        target_path = str(target_path).strip()
         
         # Check for duplicate path
         if self.get_route_by_path(path):
@@ -66,6 +67,7 @@ class RouteManager:
             'name': name,
             'target_ip': target_ip,
             'target_port': target_port,
+            'target_path': target_path,
             'protocol': protocol,
             'enabled': enabled,
             'health_check': health_check,
