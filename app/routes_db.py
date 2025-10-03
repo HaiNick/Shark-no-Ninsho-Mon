@@ -15,8 +15,23 @@ class RouteManager:
     """Manage reverse proxy routes using TinyDB"""
     
     def __init__(self, db_path='routes.json'):
-        path = Path(db_path)
+        original_path = Path(db_path)
+        path = original_path
+
+        if path.is_dir():
+            try:
+                next(path.iterdir())
+            except StopIteration:
+                # Empty directory -> replace with file
+                path.rmdir()
+            else:
+                # Directory already in use -> store inside it
+                path = path / 'routes.json'
+
         path.parent.mkdir(parents=True, exist_ok=True)
+
+        if not path.exists():
+            path.write_text('{"_default": {}}', encoding='utf-8')
 
         self._lock = threading.RLock()
         self.db = TinyDB(str(path))

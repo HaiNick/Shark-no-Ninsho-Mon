@@ -8,6 +8,7 @@ import logging
 from datetime import datetime
 import os
 import threading
+from pathlib import Path
 from dotenv import load_dotenv
 from typing import Any, Dict, Set
 
@@ -47,14 +48,30 @@ proxy_handler = ProxyHandler(route_manager, verify_ssl=settings.upstream_ssl_ver
 def _load_authorized_emails(path: str) -> Set[str]:
     emails: Set[str] = set()
 
+    original_path = Path(path)
+    path_obj = original_path
+
+    if path_obj.is_dir():
+        try:
+            next(path_obj.iterdir())
+        except StopIteration:
+            path_obj.rmdir()
+            path_obj = original_path
+        else:
+            path_obj = path_obj / 'emails.txt'
+
+    path_obj.parent.mkdir(parents=True, exist_ok=True)
+
+    if not path_obj.exists():
+        path_obj.touch()
+        logger.info(f"Created missing emails file at: {path_obj}")
+
     try:
-        with open(path, 'r', encoding='utf-8') as handle:
+        with path_obj.open('r', encoding='utf-8') as handle:
             for line in handle:
                 stripped = line.strip()
                 if stripped and not stripped.startswith('#'):
                     emails.add(stripped.lower())
-    except FileNotFoundError:
-        logger.warning(f"Emails file not found: {path}")
     except OSError as exc:
         logger.error(f"Failed to load emails file '{path}': {exc}")
 
@@ -498,7 +515,7 @@ def start_health_check_worker():
         health_thread.start()
 
 
-@app.before_first_request
+@app.before_serving
 def _initialize_background_tasks():
     start_health_check_worker()
 

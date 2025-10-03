@@ -54,8 +54,7 @@ class ProxyHandler:
         method = request.method
         data = request.get_data()
         params = request.args
-        
-    timeout = route.get('timeout', 30)
+        timeout = route.get('timeout', 30)
         
         try:
             logger.info(f"PROXY_REQUEST - Path: {route_path}{sub_path} | Target: {target_url} | Method: {method}")
@@ -146,8 +145,8 @@ class ProxyHandler:
         if not route:
             return {'success': False, 'error': 'Route not found'}
         
-    target_url = self._build_target_url(route, '')
-    timeout = route.get('timeout', 30)
+        target_url = self._build_target_url(route, '')
+        timeout = route.get('timeout', 30)
         
         try:
             import time

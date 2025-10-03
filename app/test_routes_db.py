@@ -166,3 +166,48 @@ def test_enabled_only_filter(temp_db):
     assert len(all_routes) == 2
     assert len(enabled_routes) == 1
     assert enabled_routes[0]['path'] == '/test1'
+
+
+def test_missing_database_file_created(tmp_path):
+    """RouteManager should create the database file if it doesn't exist."""
+    missing_path = tmp_path / 'missing.json'
+
+    manager = RouteManager(str(missing_path))
+    assert missing_path.exists()
+    assert missing_path.is_file()
+
+    # Ensure we can interact with the database
+    manager.add_route('/auto', 'Auto', '192.168.0.10', 8080)
+    assert manager.get_route_by_path('/auto') is not None
+
+
+def test_directory_path_replaced_with_file(tmp_path):
+    """Empty directory mounts should be replaced with a file at the same path."""
+    directory_path = tmp_path / 'routes.json'
+    directory_path.mkdir()
+
+    manager = RouteManager(str(directory_path))
+
+    assert directory_path.exists()
+    assert directory_path.is_file()
+
+    manager.add_route('/dir', 'Dir', '192.168.0.11', 8080)
+    assert manager.get_route_by_path('/dir') is not None
+
+
+def test_directory_with_existing_content_uses_nested_file(tmp_path):
+    """If the directory already contains files, store database inside it."""
+    directory_path = tmp_path / 'routes.json'
+    directory_path.mkdir()
+    marker = directory_path / 'keep.txt'
+    marker.write_text('keep', encoding='utf-8')
+
+    manager = RouteManager(str(directory_path))
+
+    nested_file = directory_path / 'routes.json'
+    assert nested_file.exists()
+    assert nested_file.is_file()
+    assert marker.exists()
+
+    manager.add_route('/nested', 'Nested', '192.168.0.12', 8080)
+    assert manager.get_route_by_path('/nested') is not None

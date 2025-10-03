@@ -84,12 +84,14 @@ pip install flask
 python setup-wizard.py
 ```
 
-Open your browser to [http://localhost:8080](http://localhost:8080) and follow the guided checks:
+Open your browser to [http://localhost:8080](http://localhost:8080) (or `http://<your-ip>:8080` from another device on your LAN) and follow the guided checks:
 
 1. Confirm Docker, Docker Compose, and Tailscale are installed and running.
 2. Paste Google OAuth2 client credentials and a Tailscale Funnel hostname.
 3. Generate secrets and save the resulting `.env`.
 4. (Optional) Start the Docker stack from the wizard once configuration is complete.
+
+> **Security Note**: The wizard is accessible on your local network only. It is NOT exposed to the internet unless you explicitly configure port forwarding. No authentication is required, so only run it on trusted networks.
 
 ### Option B — Manual configuration & compose
 
@@ -154,6 +156,8 @@ The setup wizard performs these steps automatically, but manual deployments can 
 | `SECRET_KEY` | auto-generated | Flask session key (wizard fills this in) |
 
 > **Windows note:** Replace Unix-style paths with native paths when running natively (e.g. `ROUTES_DB_PATH=C:\\Users\\you\\Shark-no-Ninsho-Mon\\app\\routes.json`).
+
+> **Automatic files:** On first start the app will create `routes.json` (TinyDB store) and `emails.txt` (allow list) if they are missing. If Docker bind mounts temporarily create empty directories, they are replaced with real files; if the directories already contain content, the data files are stored inside them.
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
 

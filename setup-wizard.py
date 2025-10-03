@@ -357,38 +357,75 @@ def api_docker_start():
         if not Path('docker-compose.yml').exists():
             return jsonify({
                 'success': False,
-                'message': 'docker-compose.yml not found'
+                'message': 'docker-compose.yml not found in current directory'
             }), 404
 
+        result = None
+        error_msg = None
+        
         # Try docker compose (v2) first
         try:
             result = subprocess.run(
-                ['docker', 'compose', 'up', '-d'],
+                ['docker', 'compose', 'up', '-d', '--build'],
                 capture_output=True,
                 text=True,
-                timeout=60
+                timeout=120
             )
-        except (subprocess.TimeoutExpired, FileNotFoundError):
-            # Fallback to docker-compose (v1)
-            result = subprocess.run(
-                ['docker-compose', 'up', '-d'],
-                capture_output=True,
-                text=True,
-                timeout=60
-            )
-
-        if result.returncode == 0:
-            return jsonify({
-                'success': True,
-                'message': 'Docker containers started successfully',
-                'output': result.stdout
-            })
-        else:
+            if result.returncode == 0:
+                return jsonify({
+                    'success': True,
+                    'message': 'Docker containers started successfully (using docker compose v2)',
+                    'output': result.stdout
+                })
+            else:
+                error_msg = result.stderr or result.stdout
+        except FileNotFoundError:
+            # Docker command not found
+            pass
+        except subprocess.TimeoutExpired:
             return jsonify({
                 'success': False,
-                'message': 'Failed to start Docker containers',
-                'error': result.stderr
+                'message': 'Docker compose command timed out after 120 seconds'
             }), 500
+        except Exception as e:
+            error_msg = str(e)
+        
+        # Try docker-compose (v1) as fallback
+        try:
+            result = subprocess.run(
+                ['docker-compose', 'up', '-d', '--build'],
+                capture_output=True,
+                text=True,
+                timeout=120
+            )
+            if result.returncode == 0:
+                return jsonify({
+                    'success': True,
+                    'message': 'Docker containers started successfully (using docker-compose v1)',
+                    'output': result.stdout
+                })
+            else:
+                error_msg = result.stderr or result.stdout
+        except FileNotFoundError:
+            # Neither command found
+            return jsonify({
+                'success': False,
+                'message': 'Docker Compose not found. Please install Docker Desktop or Docker Compose plugin.'
+            }), 500
+        except subprocess.TimeoutExpired:
+            return jsonify({
+                'success': False,
+                'message': 'docker-compose command timed out after 120 seconds'
+            }), 500
+        except Exception as e:
+            error_msg = str(e)
+        
+        # If we got here, both commands failed
+        return jsonify({
+            'success': False,
+            'message': 'Failed to start Docker containers',
+            'error': error_msg or 'Unknown error occurred'
+        }), 500
 
     except Exception as e:
         return jsonify({
@@ -401,6 +438,9 @@ def api_docker_start():
 def api_docker_stop():
     """API endpoint to stop Docker containers"""
     try:
+        result = None
+        error_msg = None
+        
         # Try docker compose (v2) first
         try:
             result = subprocess.run(
@@ -409,27 +449,59 @@ def api_docker_stop():
                 text=True,
                 timeout=60
             )
-        except (subprocess.TimeoutExpired, FileNotFoundError):
-            # Fallback to docker-compose (v1)
+            if result.returncode == 0:
+                return jsonify({
+                    'success': True,
+                    'message': 'Docker containers stopped successfully (using docker compose v2)',
+                    'output': result.stdout
+                })
+            else:
+                error_msg = result.stderr or result.stdout
+        except FileNotFoundError:
+            pass
+        except subprocess.TimeoutExpired:
+            return jsonify({
+                'success': False,
+                'message': 'Docker compose command timed out'
+            }), 500
+        except Exception as e:
+            error_msg = str(e)
+        
+        # Try docker-compose (v1) as fallback
+        try:
             result = subprocess.run(
                 ['docker-compose', 'down'],
                 capture_output=True,
                 text=True,
                 timeout=60
             )
-
-        if result.returncode == 0:
-            return jsonify({
-                'success': True,
-                'message': 'Docker containers stopped successfully',
-                'output': result.stdout
-            })
-        else:
+            if result.returncode == 0:
+                return jsonify({
+                    'success': True,
+                    'message': 'Docker containers stopped successfully (using docker-compose v1)',
+                    'output': result.stdout
+                })
+            else:
+                error_msg = result.stderr or result.stdout
+        except FileNotFoundError:
             return jsonify({
                 'success': False,
-                'message': 'Failed to stop Docker containers',
-                'error': result.stderr
+                'message': 'Docker Compose not found. Please install Docker Desktop or Docker Compose plugin.'
             }), 500
+        except subprocess.TimeoutExpired:
+            return jsonify({
+                'success': False,
+                'message': 'docker-compose command timed out'
+            }), 500
+        except Exception as e:
+            error_msg = str(e)
+        
+        # If we got here, both commands failed
+        return jsonify({
+            'success': False,
+            'message': 'Failed to stop Docker containers',
+            'error': error_msg or 'Unknown error occurred'
+        }), 500
 
     except Exception as e:
         return jsonify({
@@ -520,15 +592,44 @@ def main():
         print()
 
     # Start Flask server
-    print("=" * 63)
+    print("=" * 70)
     print("Starting setup wizard web interface...")
     print("\n   Open your browser and navigate to:")
-    print("   \033[1;36mhttp://localhost:8080\033[0m\n")
-    print("=" * 63)
+    print("   \033[1;36mhttp://localhost:8080\033[0m (from this machine)")
+    
+    # Try to get local network IP address (no internet required)
+    try:
+        import socket
+        # Get hostname and resolve to local IP
+        hostname = socket.gethostname()
+        local_ip = socket.gethostbyname(hostname)
+        
+        # Filter out localhost addresses
+        if local_ip and not local_ip.startswith('127.'):
+            print(f"   \033[1;36mhttp://{local_ip}:8080\033[0m (from other devices on your LAN)\n")
+        else:
+            # Fallback: try to get IP from all network interfaces
+            import platform
+            if platform.system() == 'Windows':
+                print("   \033[1;36mhttp://<your-ip>:8080\033[0m (from other devices on your LAN)\n")
+                print("   Run 'ipconfig' to find your local IP address\n")
+            else:
+                print("   \033[1;36mhttp://<your-ip>:8080\033[0m (from other devices on your LAN)\n")
+                print("   Run 'ip addr' or 'ifconfig' to find your local IP address\n")
+    except Exception:
+        import platform
+        if platform.system() == 'Windows':
+            print("   \033[1;36mhttp://<your-ip>:8080\033[0m (from other devices on your LAN)\n")
+            print("   Run 'ipconfig' to find your local IP address\n")
+        else:
+            print("   \033[1;36mhttp://<your-ip>:8080\033[0m (from other devices on your LAN)\n")
+            print("   Run 'ip addr' or 'ifconfig' to find your local IP address\n")
+    
+    print("=" * 70)
     print("\nPress CTRL+C to stop the setup wizard\n")
 
     try:
-        app.run(host='127.0.0.1', port=8080, debug=False)
+        app.run(host='0.0.0.0', port=8080, debug=False)
     except KeyboardInterrupt:
         print("\n\nSetup wizard stopped.")
         sys.exit(0)
