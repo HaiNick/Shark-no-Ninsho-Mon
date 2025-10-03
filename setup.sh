@@ -105,46 +105,105 @@ else
 fi
 
 echo ""
-echo -e "${ORANGE}STEP 2: Generate Cookie Secret${NC}"
-echo -e "${ORANGE}==============================${NC}"
+echo -e "${ORANGE}STEP 2: Generate Secrets${NC}"
+echo -e "${ORANGE}========================${NC}"
 echo ""
 
-# expects: command_exists(), GREEN/RED/YELLOW/NC set
-gen_cookie_secret() {
-  local s=""
-  # try OpenSSL first
-  if command_exists openssl; then
-    # 32 raw bytes -> Base64 (URL-safe), single line, no newline
-    s="$(openssl rand 32 | base64 | tr -d '\n' | tr '+/' '-_')"
-  elif [ -r /dev/urandom ] && command_exists base64; then
-    s="$(head -c 32 /dev/urandom | base64 | tr -d '\n' | tr '+/' '-_')"
-  fi
-
-  # verify decoded length is 16, 24, or 32 bytes
-  if [ -n "$s" ]; then
-    # some base64 tools need -d vs --decode; prefer -d
-    # Convert URL-safe back to standard base64 for decoding
-    if decoded_len=$(printf '%s' "$s" | tr '_-' '/+' | base64 -d 2>/dev/null | wc -c); then
-      case "$decoded_len" in
-        16|24|32)
-          printf '%s' "$s"
-          return 0
-          ;;
-      esac
+# Check for Python
+echo -e "${CYAN}Checking for Python...${NC}"
+python_cmd=""
+for cmd in python3 python; do
+    if command_exists "$cmd"; then
+        python_cmd="$cmd"
+        echo -e "${GREEN}Found Python: $cmd${NC}"
+        break
     fi
-  fi
-  return 1
-}
+done
 
-if cookie_secret="$(gen_cookie_secret)"; then
-  echo -e "${GREEN}Generated secure cookie secret (Base64 URL-safe):${NC} $cookie_secret"
-  echo "Use it like this:"
-  echo "  env:   OAUTH2_PROXY_COOKIE_SECRET=$cookie_secret"
-  echo "  or cfg: cookie_secret = \"$cookie_secret\""
+if [ -n "$python_cmd" ]; then
+    echo ""
+    echo -e "${YELLOW}Do you want to use the automated secret generator? (Recommended)${NC}"
+    use_generator=$(get_user_input "Use generate-secrets.py? (y/n)" "y" "false" "false")
+    
+    if [[ "$use_generator" =~ ^[Yy]([Ee][Ss])?$ ]] || [ -z "$use_generator" ]; then
+        echo ""
+        echo -e "${CYAN}Running secret generator...${NC}"
+        $python_cmd generate-secrets.py
+        
+        if [ -f ".env" ]; then
+            echo ""
+            echo -e "${GREEN}Secrets have been generated and saved to .env!${NC}"
+            echo -e "${CYAN}Continuing with additional configuration...${NC}"
+            echo ""
+            
+            # Read the generated secrets
+            cookie_secret=$(get_existing_env_value "OAUTH2_PROXY_COOKIE_SECRET")
+            flask_secret=$(get_existing_env_value "SECRET_KEY")
+        fi
+    else
+        # Manual secret generation fallback
+        gen_cookie_secret() {
+          local s=""
+          if command_exists openssl; then
+            s="$(openssl rand 32 | base64 | tr -d '\n' | tr '+/' '-_')"
+          elif [ -r /dev/urandom ] && command_exists base64; then
+            s="$(head -c 32 /dev/urandom | base64 | tr -d '\n' | tr '+/' '-_')"
+          fi
+
+          if [ -n "$s" ]; then
+            if decoded_len=$(printf '%s' "$s" | tr '_-' '/+' | base64 -d 2>/dev/null | wc -c); then
+              case "$decoded_len" in
+                16|24|32)
+                  printf '%s' "$s"
+                  return 0
+                  ;;
+              esac
+            fi
+          fi
+          return 1
+        }
+
+        if cookie_secret="$(gen_cookie_secret)"; then
+          echo -e "${GREEN}Generated secure cookie secret${NC}"
+        else
+          echo -e "${RED}[ERROR] Could not generate cookie secret automatically.${NC}"
+          echo -e "${YELLOW}Please provide a Base64 (URL-safe) value:${NC}"
+          cookie_secret="$(get_user_input 'Cookie secret (base64)' '' 'true' 'false')"
+        fi
+    fi
 else
-  echo -e "${RED}[ERROR] Could not generate a valid cookie secret automatically.${NC}"
-  echo -e "${YELLOW}Please provide a Base64 (URL-safe) value whose decoded length is 16, 24, or 32 bytes.${NC}"
-  cookie_secret="$(get_user_input 'Cookie secret (base64)' '' 'true' 'false')"
+    echo -e "${YELLOW}[WARNING] Python not found. Using manual secret generation.${NC}"
+    echo -e "${YELLOW}For better security, install Python and run: python3 generate-secrets.py${NC}"
+    echo ""
+    
+    # Manual fallback
+    gen_cookie_secret() {
+      local s=""
+      if command_exists openssl; then
+        s="$(openssl rand 32 | base64 | tr -d '\n' | tr '+/' '-_')"
+      elif [ -r /dev/urandom ] && command_exists base64; then
+        s="$(head -c 32 /dev/urandom | base64 | tr -d '\n' | tr '+/' '-_')"
+      fi
+
+      if [ -n "$s" ]; then
+        if decoded_len=$(printf '%s' "$s" | tr '_-' '/+' | base64 -d 2>/dev/null | wc -c); then
+          case "$decoded_len" in
+            16|24|32)
+              printf '%s' "$s"
+              return 0
+              ;;
+          esac
+        fi
+      fi
+      return 1
+    }
+
+    if cookie_secret="$(gen_cookie_secret)"; then
+      echo -e "${GREEN}Generated secure cookie secret${NC}"
+    else
+      echo -e "${RED}[ERROR] Could not generate cookie secret automatically.${NC}"
+      cookie_secret="$(get_user_input 'Cookie secret (base64)' '' 'true' 'false')"
+    fi
 fi
 
 echo ""
@@ -247,21 +306,62 @@ else
     final_funnel_hostname="$funnel_hostname"
 fi
 
+# Ask about development mode
+echo ""
+echo -e "${CYAN}Development Mode Configuration${NC}"
+echo -e "${YELLOW}DEV_MODE allows running the app without OAuth2 authentication.${NC}"
+echo -e "${YELLOW}Only enable this for local development!${NC}"
+dev_mode_choice=$(get_user_input "Enable development mode? (y/n)" "n" "false" "false")
+if [[ "$dev_mode_choice" =~ ^[Yy]([Ee][Ss])?$ ]]; then
+    dev_mode_value="true"
+    flask_env="development"
+    debug_value="true"
+    echo -e "${GREEN}Development mode enabled${NC}"
+else
+    dev_mode_value="false"
+    flask_env="production"
+    debug_value="false"
+    echo -e "${GREEN}Production mode enabled${NC}"
+fi
+
 # Write .env file with clean formatting
 {
     echo "# Generated by setup script on $(date)"
     echo "# DO NOT commit this file to version control!"
     echo ""
+    echo "# ============================================"
     echo "# Google OAuth2 Client Credentials"
+    echo "# ============================================"
     echo "OAUTH2_PROXY_CLIENT_ID=$final_client_id"
     echo "OAUTH2_PROXY_CLIENT_SECRET=$final_client_secret"
     echo ""
+    echo "# ============================================"
     echo "# Cookie Secret (32 random bytes, base64 encoded)"
+    echo "# ============================================"
     echo "OAUTH2_PROXY_COOKIE_SECRET=$final_cookie_secret"
     echo ""
+    echo "# ============================================"
     echo "# Tailscale Funnel Configuration"
+    echo "# ============================================"
     echo "FUNNEL_HOST=$final_funnel_host"
     echo "FUNNEL_HOSTNAME=$final_funnel_hostname"
+    echo ""
+    echo "# ============================================"
+    echo "# Flask App Configuration"
+    echo "# ============================================"
+    echo "FLASK_ENV=$flask_env"
+    echo "DEV_MODE=$dev_mode_value"
+    echo "DEBUG=$debug_value"
+    echo "PORT=5001"
+    echo "HOST=0.0.0.0"
+    
+    # Add SECRET_KEY if not already present from generate-secrets.py
+    if [ -z "$flask_secret" ]; then
+        echo ""
+        echo "# Flask Secret Key (for session management)"
+        echo "# Generate a new one with: python3 -c 'import secrets; print(secrets.token_hex(32))'"
+        echo "SECRET_KEY=CHANGE_ME_$(date +%s)"
+    fi
 } > .env
 
 # Update variables for later use
