@@ -1,23 +1,53 @@
 {% extends "base.html" %}
 
-{% block title %}Dashboard -         <div class="quick-links">
-            <a href="/whoami" class="quick-link">
-                <span class="link-icon">i</span>
-                <span>Who Am I</span>
-            </a>
-            <a href="/headers" class="quick-link">
-                <span class="link-icon">H</span>
-                <span>Request Headers</span>
-            </a>
-            <a href="/logs" class="quick-link">
-                <span class="link-icon">L</span>
-                <span>Application Logs</span>
-            </a>
-            <a href="/health" class="quick-link">
-                <span class="link-icon">✓</span>
-                <span>Health Check</span>
-            </a>
-        </div>n{% endblock %}
+{% block title %}Dashboard - Shark-no-Ninsho-Mon{% endblock %}
+
+{% block extra_css %}
+{{ super() }}
+<style>
+.quick-links {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 1rem;
+}
+
+.quick-link {
+    display: flex;
+    align-items: center;
+    padding: 0.75rem 1rem;
+    border-radius: 12px;
+    background: rgba(255, 255, 255, 0.08);
+    backdrop-filter: blur(6px);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    transition: transform 0.2s ease, border-color 0.2s ease;
+}
+
+.quick-link:hover {
+    transform: translateY(-2px);
+    border-color: rgba(255, 255, 255, 0.3);
+}
+
+.link-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    margin-right: 0.75rem;
+    padding: 0.5rem;
+    border-radius: 10px;
+    background: rgba(255, 255, 255, 0.12);
+}
+
+.link-icon img {
+    width: 28px;
+    height: 28px;
+    display: block;
+}
+
+.quick-link span:last-child {
+    font-weight: 600;
+}
+</style>
+{% endblock %}
 
 {% block content %}
 <div class="container">
@@ -40,7 +70,9 @@
             {% if routes %}
                 {% for route in routes %}
                 <a href="{{ route.path }}" class="service-card" data-status="{{ route.status }}">
-                    <div class="service-icon">↗</div>
+                    <div class="service-icon">
+                        <img src="{{ url_for('static', filename='icons/arrow_outward.svg') }}" alt="" aria-hidden="true" style="width: 40px; height: 40px;">
+                    </div>
                     <div class="service-info">
                         <h3>{{ route.name }}</h3>
                         <p class="service-path">{{ route.path }}</p>
@@ -61,7 +93,7 @@
                 {% endfor %}
             {% else %}
                 <div class="empty-state">
-                    <div class="empty-icon">∅</div>
+                    <div class="empty-icon">None</div>
                     <h3>No services configured yet</h3>
                     <p>Click "Manage Routes" to add your first service</p>
                     <a href="/admin" class="btn btn-primary">Get Started</a>
@@ -75,19 +107,27 @@
         <h2>Quick Links</h2>
         <div class="quick-links">
             <a href="/whoami" class="quick-link">
-                <span class="link-icon">👤</span>
+                <span class="link-icon">
+                    <img src="{{ url_for('static', filename='icons/account_circle.svg') }}" alt="" aria-hidden="true">
+                </span>
                 <span>Who Am I</span>
             </a>
             <a href="/headers" class="quick-link">
-                <span class="link-icon">�</span>
+                <span class="link-icon">
+                    <img src="{{ url_for('static', filename='icons/data_object.svg') }}" alt="" aria-hidden="true">
+                </span>
                 <span>Request Headers</span>
             </a>
             <a href="/logs" class="quick-link">
-                <span class="link-icon">�</span>
+                <span class="link-icon">
+                    <img src="{{ url_for('static', filename='icons/article.svg') }}" alt="" aria-hidden="true">
+                </span>
                 <span>Application Logs</span>
             </a>
             <a href="/health" class="quick-link">
-                <span class="link-icon">✓</span>
+                <span class="link-icon">
+                    <img src="{{ url_for('static', filename='icons/monitor_heart.svg') }}" alt="" aria-hidden="true">
+                </span>
                 <span>Health Check</span>
             </a>
         </div>

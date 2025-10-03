@@ -59,7 +59,7 @@ function renderRoutes(routesList) {
             <tr>
                 <td colspan="7" style="text-align: center; padding: 2rem;">
                     <div style="color: var(--text-secondary);">
-                        <div style="font-size: 3rem; margin-bottom: 1rem;">—</div>
+                        <i class="fas fa-inbox" style="font-size: 3rem; margin-bottom: 1rem;"></i>
                         <p>No routes configured yet. Click "Add Route" to get started.</p>
                     </div>
                 </td>
@@ -89,14 +89,14 @@ function renderRoutes(routesList) {
             </td>
             <td>
                 <div class="action-buttons">
-                    <button class="btn-icon test" onclick="testRoute('${route.id}')" title="Test Connection" data-route-id="${route.id}">
-                        <img src="/static/icons/check_circle.svg" alt="" class="icon test-icon" aria-hidden="true">
+                    <button class="btn-icon test" onclick="testRoute('${route.id}')" title="Test Connection">
+                        <i class="fas fa-flask"></i>
                     </button>
                     <button class="btn-icon edit" onclick="editRoute('${route.id}')" title="Edit">
-                        <span style="font-weight: bold;">✎</span>
+                        <i class="fas fa-edit"></i>
                     </button>
                     <button class="btn-icon delete" onclick="deleteRoute('${route.id}')" title="Delete">
-                        <span style="font-weight: bold;">✕</span>
+                        <i class="fas fa-trash"></i>
                     </button>
                 </div>
             </td>
@@ -138,16 +138,12 @@ function filterRoutes() {
 // Refresh Routes
 async function refreshRoutes() {
     const btn = event.target.closest('button');
-    const icon = btn.querySelector('.icon');
-    if (icon) {
-        icon.style.animation = 'spin 1s linear infinite';
-    }
+    const icon = btn.querySelector('i');
+    icon.classList.add('fa-spin');
     
     await loadRoutes();
     
-    if (icon) {
-        icon.style.animation = '';
-    }
+    icon.classList.remove('fa-spin');
     showToast('Routes refreshed', 'success');
 }
 
@@ -265,13 +261,10 @@ async function toggleRoute(routeId) {
 // Test Route
 async function testRoute(routeId) {
     const btn = event.target.closest('button');
-    const icon = btn.querySelector('.test-icon');
-    const originalSrc = icon ? icon.src : null;
+    const icon = btn.querySelector('i');
     
-    if (icon) {
-        icon.src = '/static/icons/progress_activity.svg';
-        icon.style.animation = 'spin 1s linear infinite';
-    }
+    icon.classList.remove('fa-flask');
+    icon.classList.add('fa-spinner', 'fa-spin');
     
     try {
         const response = await fetch(`/api/routes/${routeId}/test`, {
@@ -292,10 +285,8 @@ async function testRoute(routeId) {
         console.error('Error testing route:', error);
         showToast('Failed to test route: ' + error.message, 'error');
     } finally {
-        if (icon && originalSrc) {
-            icon.src = originalSrc;
-            icon.style.animation = '';
-        }
+        icon.classList.remove('fa-spinner', 'fa-spin');
+        icon.classList.add('fa-flask');
     }
 }
 

@@ -3,8 +3,23 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>🦈 Shark Route Manager - Setup Wizard</title>
+    <title>Shark Route Manager - Setup Wizard</title>
     <style>
+        /* Dracula Theme Colors */
+        :root {
+            --background: #282a36;
+            --current-line: #44475a;
+            --foreground: #f8f8f2;
+            --comment: #6272a4;
+            --cyan: #8be9fd;
+            --green: #50fa7b;
+            --orange: #ffb86c;
+            --pink: #ff79c6;
+            --purple: #bd93f9;
+            --red: #ff5555;
+            --yellow: #f1fa8c;
+        }
+
         * {
             margin: 0;
             padding: 0;
@@ -12,27 +27,30 @@
         }
 
         body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+            background: var(--background);
             min-height: 100vh;
             display: flex;
             align-items: center;
             justify-content: center;
             padding: 20px;
+            color: var(--foreground);
         }
 
         .container {
-            background: white;
-            border-radius: 20px;
-            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            background: var(--current-line);
+            border-radius: 10px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
             max-width: 900px;
             width: 100%;
             overflow: hidden;
+            border: 2px solid var(--purple);
         }
 
         .header {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: white;
+            background: var(--background);
+            border-bottom: 2px solid var(--purple);
+            color: var(--foreground);
             padding: 40px;
             text-align: center;
         }
@@ -40,15 +58,18 @@
         .header h1 {
             font-size: 2.5em;
             margin-bottom: 10px;
+            color: var(--cyan);
+            text-shadow: 0 0 20px rgba(139, 233, 253, 0.5);
         }
 
         .header p {
             font-size: 1.1em;
-            opacity: 0.9;
+            color: var(--purple);
         }
 
         .content {
             padding: 40px;
+            background: var(--background);
         }
 
         .section {
@@ -57,10 +78,10 @@
 
         .section-title {
             font-size: 1.5em;
-            color: #333;
+            color: var(--pink);
             margin-bottom: 20px;
             padding-bottom: 10px;
-            border-bottom: 2px solid #667eea;
+            border-bottom: 2px solid var(--purple);
         }
 
         .system-checks {
@@ -71,31 +92,36 @@
         }
 
         .check-card {
-            background: #f8f9fa;
+            background: var(--current-line);
             padding: 20px;
             border-radius: 10px;
-            border-left: 4px solid #667eea;
+            border-left: 4px solid var(--green);
+            transition: transform 0.2s;
+        }
+
+        .check-card:hover {
+            transform: translateX(5px);
         }
 
         .check-card.warning {
-            border-left-color: #ffc107;
-            background: #fff8e1;
+            border-left-color: var(--yellow);
+            background: rgba(241, 250, 140, 0.1);
         }
 
         .check-card.error {
-            border-left-color: #dc3545;
-            background: #ffe6e6;
+            border-left-color: var(--red);
+            background: rgba(255, 85, 85, 0.1);
         }
 
         .check-card h3 {
             font-size: 1.1em;
             margin-bottom: 10px;
-            color: #333;
+            color: var(--cyan);
         }
 
         .check-card p {
             font-size: 0.9em;
-            color: #666;
+            color: var(--comment);
             margin: 5px 0;
         }
 
@@ -109,18 +135,21 @@
         }
 
         .status-badge.success {
-            background: #d4edda;
-            color: #155724;
+            background: rgba(80, 250, 123, 0.2);
+            color: var(--green);
+            border: 1px solid var(--green);
         }
 
         .status-badge.warning {
-            background: #fff3cd;
-            color: #856404;
+            background: rgba(241, 250, 140, 0.2);
+            color: var(--yellow);
+            border: 1px solid var(--yellow);
         }
 
         .status-badge.error {
-            background: #f8d7da;
-            color: #721c24;
+            background: rgba(255, 85, 85, 0.2);
+            color: var(--red);
+            border: 1px solid var(--red);
         }
 
         .form-group {
@@ -131,42 +160,55 @@
             display: block;
             font-weight: 600;
             margin-bottom: 8px;
-            color: #333;
+            color: var(--purple);
         }
 
         .form-group input,
         .form-group select {
             width: 100%;
             padding: 12px;
-            border: 2px solid #e0e0e0;
+            border: 2px solid var(--current-line);
             border-radius: 8px;
             font-size: 1em;
-            transition: border-color 0.3s;
+            transition: all 0.3s;
+            background: var(--current-line);
+            color: var(--foreground);
+            font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
         }
 
         .form-group input:focus,
         .form-group select:focus {
             outline: none;
-            border-color: #667eea;
+            border-color: var(--purple);
+            box-shadow: 0 0 10px rgba(189, 147, 249, 0.3);
         }
 
         .form-group input.valid {
-            border-color: #28a745;
+            border-color: var(--green);
         }
 
         .form-group input.invalid {
-            border-color: #dc3545;
+            border-color: var(--red);
         }
 
         .form-group small {
             display: block;
             margin-top: 5px;
-            color: #666;
+            color: var(--comment);
             font-size: 0.9em;
         }
 
+        .form-group small a {
+            color: var(--cyan);
+            text-decoration: none;
+        }
+
+        .form-group small a:hover {
+            text-decoration: underline;
+        }
+
         .form-group .error-message {
-            color: #dc3545;
+            color: var(--red);
             font-size: 0.9em;
             margin-top: 5px;
         }
@@ -175,15 +217,23 @@
             display: flex;
             align-items: center;
             margin-bottom: 20px;
+            padding: 15px;
+            background: var(--current-line);
+            border-radius: 8px;
+            border: 1px solid var(--purple);
         }
 
         .checkbox-group input[type="checkbox"] {
-            width: auto;
+            width: 20px;
+            height: 20px;
             margin-right: 10px;
+            cursor: pointer;
         }
 
         .checkbox-group label {
             margin-bottom: 0;
+            color: var(--foreground);
+            cursor: pointer;
         }
 
         .button-group {
@@ -194,40 +244,48 @@
 
         .btn {
             padding: 12px 30px;
-            border: none;
+            border: 2px solid transparent;
             border-radius: 8px;
             font-size: 1em;
             font-weight: 600;
             cursor: pointer;
             transition: all 0.3s;
+            font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
         }
 
         .btn-primary {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: white;
+            background: var(--purple);
+            color: var(--background);
+            border-color: var(--purple);
         }
 
         .btn-primary:hover {
             transform: translateY(-2px);
-            box-shadow: 0 5px 20px rgba(102, 126, 234, 0.4);
+            box-shadow: 0 5px 20px rgba(189, 147, 249, 0.5);
+            background: var(--pink);
+            border-color: var(--pink);
         }
 
         .btn-secondary {
-            background: #6c757d;
-            color: white;
+            background: var(--current-line);
+            color: var(--foreground);
+            border-color: var(--comment);
         }
 
         .btn-secondary:hover {
-            background: #5a6268;
+            background: var(--comment);
+            border-color: var(--comment);
         }
 
         .btn-success {
-            background: #28a745;
-            color: white;
+            background: var(--green);
+            color: var(--background);
+            border-color: var(--green);
         }
 
         .btn-success:hover {
-            background: #218838;
+            transform: translateY(-2px);
+            box-shadow: 0 5px 20px rgba(80, 250, 123, 0.5);
         }
 
         .btn:disabled {
@@ -239,36 +297,38 @@
             padding: 15px 20px;
             border-radius: 8px;
             margin-bottom: 20px;
+            border-left: 4px solid;
         }
 
         .alert-success {
-            background: #d4edda;
-            color: #155724;
-            border: 1px solid #c3e6cb;
+            background: rgba(80, 250, 123, 0.1);
+            color: var(--green);
+            border-color: var(--green);
         }
 
         .alert-warning {
-            background: #fff3cd;
-            color: #856404;
-            border: 1px solid #ffeaa7;
+            background: rgba(241, 250, 140, 0.1);
+            color: var(--yellow);
+            border-color: var(--yellow);
         }
 
         .alert-danger {
-            background: #f8d7da;
-            color: #721c24;
-            border: 1px solid #f5c6cb;
+            background: rgba(255, 85, 85, 0.1);
+            color: var(--red);
+            border-color: var(--red);
         }
 
         .alert-info {
-            background: #d1ecf1;
-            color: #0c5460;
-            border: 1px solid #bee5eb;
+            background: rgba(139, 233, 253, 0.1);
+            color: var(--cyan);
+            border-color: var(--cyan);
         }
 
         .loading {
             display: none;
             text-align: center;
             padding: 20px;
+            color: var(--foreground);
         }
 
         .loading.active {
@@ -276,8 +336,8 @@
         }
 
         .spinner {
-            border: 4px solid #f3f3f3;
-            border-top: 4px solid #667eea;
+            border: 4px solid var(--current-line);
+            border-top: 4px solid var(--purple);
             border-radius: 50%;
             width: 40px;
             height: 40px;
@@ -318,7 +378,7 @@
 <body>
     <div class="container">
         <div class="header">
-            <h1>🦈 Shark Route Manager</h1>
+            <h1>Shark Route Manager</h1>
             <p>Setup Wizard - Configure your reverse proxy in minutes</p>
         </div>
 
@@ -479,7 +539,7 @@
                     'Python',
                     checks.python.compatible ? 'success' : 'error',
                     `Version: ${checks.python.version}`,
-                    checks.python.compatible ? 'Compatible ✓' : 'Incompatible (Need 3.8+) ✗'
+                    checks.python.compatible ? 'Compatible' : 'Incompatible (Need 3.8+)'
                 );
                 container.appendChild(pythonCard);
                 
@@ -488,7 +548,7 @@
                     'Privileges',
                     checks.is_admin ? 'success' : 'warning',
                     `Running as: ${checks.is_admin ? 'Admin/Sudo' : 'Normal User'}`,
-                    checks.is_admin ? 'Elevated ✓' : 'Limited ⚠'
+                    checks.is_admin ? 'Elevated' : 'Limited'
                 );
                 container.appendChild(adminCard);
                 if (!checks.is_admin) {
@@ -500,7 +560,7 @@
                     'Docker',
                     checks.docker.installed && checks.docker.running ? 'success' : 'error',
                     checks.docker.installed ? `${checks.docker.version}` : 'Not installed',
-                    checks.docker.running ? 'Running ✓' : checks.docker.installed ? 'Not Running ✗' : 'Not Found ✗'
+                    checks.docker.running ? 'Running' : checks.docker.installed ? 'Not Running' : 'Not Found'
                 );
                 container.appendChild(dockerCard);
                 if (!checks.docker.installed) {
@@ -514,7 +574,7 @@
                     'Docker Compose',
                     checks.docker_compose.installed ? 'success' : 'warning',
                     checks.docker_compose.installed ? `${checks.docker_compose.version}` : 'Not installed',
-                    checks.docker_compose.installed ? 'Installed ✓' : 'Not Found ✗'
+                    checks.docker_compose.installed ? 'Installed' : 'Not Found'
                 );
                 container.appendChild(composeCard);
                 
@@ -523,7 +583,7 @@
                     'Tailscale',
                     checks.tailscale.installed && checks.tailscale.running ? 'success' : 'warning',
                     checks.tailscale.installed ? `${checks.tailscale.version}` : 'Not installed',
-                    checks.tailscale.running ? 'Running ✓' : checks.tailscale.installed ? 'Not Running ✗' : 'Not Found ✗'
+                    checks.tailscale.running ? 'Running' : checks.tailscale.installed ? 'Not Running' : 'Not Found'
                 );
                 container.appendChild(tailscaleCard);
                 if (!checks.tailscale.installed) {
@@ -536,7 +596,7 @@
                 if (warnings.length > 0) {
                     warningsContainer.innerHTML = `
                         <div class="alert alert-warning">
-                            <strong>⚠ Warnings:</strong>
+                            <strong>Warnings:</strong>
                             <ul style="margin: 10px 0 0 20px;">
                                 ${warnings.map(w => `<li>${w}</li>`).join('')}
                             </ul>
@@ -545,7 +605,7 @@
                 } else {
                     warningsContainer.innerHTML = `
                         <div class="alert alert-success">
-                            <strong>✓ All system checks passed!</strong> Your system is ready for setup.
+                            <strong>All system checks passed!</strong> Your system is ready for setup.
                         </div>
                     `;
                 }

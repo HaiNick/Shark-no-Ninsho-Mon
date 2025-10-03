@@ -5,7 +5,9 @@
 {% block content %}
 <div class="container">
     <div class="card error-card">
-        <div class="error-icon">⛔</div>
+        <div class="error-icon">
+            <img src="{{ url_for('static', filename='icons/block.svg') }}" alt="" aria-hidden="true" style="width: 80px; height: 80px; filter: invert(36%) sepia(77%) saturate(3489%) hue-rotate(343deg) brightness(102%) contrast(101%);">
+        </div>
         <h1>Access Denied</h1>
         <p class="error-message">
             Sorry, <strong>{{ email }}</strong> is not authorized to access this resource.

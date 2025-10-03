@@ -7,7 +7,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [2.0.0] - 2025-09-30
 
-### 🔒 Security Enhancements
+### Security Enhancements
 
 #### Critical Fixes
 - **FIXED**: Removed anonymous user bypass in production mode
@@ -27,7 +27,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Proper file permissions and ownership
   - Reduced attack surface
 
-### 🚀 Performance Improvements
+### Performance Improvements
 
 #### Email Authorization Caching
 - **ADDED**: Smart caching for authorized emails
@@ -42,7 +42,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Reduced log noise in production
   - Better log level management
 
-### 🏥 Reliability & Monitoring
+### Reliability & Monitoring
 
 #### Health Checks
 - **ADDED**: Comprehensive Docker health checks
@@ -58,7 +58,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - `condition: service_healthy` in docker-compose
   - Prevents race conditions on startup
 
-### 🛠️ Code Quality
+### Code Quality
 
 #### Error Handling
 - **IMPROVED**: File permission error handling
@@ -78,7 +78,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Absolute path support via environment variables
   - Eliminates path resolution ambiguity
 
-### 🧪 Testing
+### Testing
 
 #### Test Suite
 - **ADDED**: Comprehensive unit tests
@@ -89,7 +89,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - API endpoint coverage
   - Run with: `python -m pytest test_app.py -v`
 
-### 📚 Documentation
+### Documentation
 
 #### Security Documentation
 - **ADDED**: SECURITY.md
@@ -105,7 +105,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Breaking changes documentation
   - Migration guides
 
-### 🔧 Configuration
+### Configuration
 
 #### Docker Compose
 - **UPDATED**: Enhanced docker-compose.yml
@@ -126,7 +126,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Gunicorn timeout configuration
   - Log directory creation
 
-### ⚙️ Application Updates
+### Application Updates
 
 #### Version Bump
 - **UPDATED**: Application version to 2.0.0

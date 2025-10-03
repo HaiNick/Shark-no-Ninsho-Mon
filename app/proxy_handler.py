@@ -11,8 +11,18 @@ logger = logging.getLogger(__name__)
 class ProxyHandler:
     """Handle proxying requests to backend services"""
     
-    def __init__(self, route_manager):
+    def __init__(self, route_manager, verify_ssl: bool = False):
         self.route_manager = route_manager
+        self._verify_ssl = verify_ssl
+
+        if not verify_ssl:
+            try:
+                from urllib3 import disable_warnings
+                from urllib3.exceptions import InsecureRequestWarning
+                disable_warnings(InsecureRequestWarning)
+            except Exception:
+                # Fallback quietly if urllib3 API changes
+                pass
     
     def proxy_request(self, route_path: str, sub_path: str = '') -> Response:
         """
@@ -45,7 +55,7 @@ class ProxyHandler:
         data = request.get_data()
         params = request.args
         
-        timeout = route.get('timeout', 30)
+    timeout = route.get('timeout', 30)
         
         try:
             logger.info(f"PROXY_REQUEST - Path: {route_path}{sub_path} | Target: {target_url} | Method: {method}")
@@ -57,10 +67,11 @@ class ProxyHandler:
                 headers=headers,
                 data=data,
                 params=params,
+                cookies=request.cookies,
                 timeout=timeout,
                 stream=True,  # Stream response for large files
                 allow_redirects=False,  # Handle redirects ourselves
-                verify=False  # Don't verify SSL for internal services
+                verify=self._verify_ssl
             )
             
             # Build response
@@ -135,14 +146,14 @@ class ProxyHandler:
         if not route:
             return {'success': False, 'error': 'Route not found'}
         
-        target_url = self._build_target_url(route, '')
-        timeout = route.get('timeout', 30)
+    target_url = self._build_target_url(route, '')
+    timeout = route.get('timeout', 30)
         
         try:
             import time
             start = time.time()
             
-            resp = requests.get(target_url, timeout=min(timeout, 10), verify=False)
+            resp = requests.get(target_url, timeout=min(timeout, 10), verify=self._verify_ssl)
             
             duration = int((time.time() - start) * 1000)  # ms
             

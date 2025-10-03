@@ -2,7 +2,7 @@
 
 # Shark-no-Ninsho-Mon
 
-> **Secure Public Web Apps with Google OAuth via Tailscale Funnel**
+> Protect every self-hosted web app with Google OAuth, smart routing, and delightful tooling.
 
 [![Docker](https://img.shields.io/badge/Docker-2496ED?style=for-the-badge&logo=docker&logoColor=white)](https://www.docker.com/)
 [![Tailscale](https://img.shields.io/badge/Tailscale-000000?style=for-the-badge&logo=tailscale&logoColor=white)](https://tailscale.com/)
@@ -14,243 +14,99 @@
 ![GitHub issues](https://img.shields.io/github/issues/HaiNick/Shark-no-Ninsho-Mon)
 ![GitHub last commit](https://img.shields.io/github/last-commit/HaiNick/Shark-no-Ninsho-Mon)
 
-A **production-ready**, **zero-configuration** solution for exposing self-hosted web applications to the internet with enterprise-grade Google authentication. Built with Tailscale Funnel, OAuth2 Proxy, and Docker for maximum security and minimal setup complexity.
+Shark-no-Ninsho-Mon is an opinionated reverse proxy gateway that combines Tailscale Funnel, OAuth2 Proxy, and a rich Flask dashboard to publish internal services safely. Manage routes, monitor health, and stay productive whether you deploy from Linux or Windows.
+
+---
 
 ## Table of Contents
 
-- [Features](#features)
-- [Quick Start](#quick-start)
-- [Architecture](#architecture)
-- [Prerequisites](#prerequisites)
+- [What's inside](#whats-inside)
+- [Quick start](#quick-start)
 - [Configuration](#configuration)
-- [Environment Configuration](#environment-configuration)
-- [Deployment](#deployment)
-- [Testing & Verification](#testing--verification)
-- [Stopping & Cleanup](#stopping--cleanup)
-- [Project Structure](#project-structure)
+- [Architecture](#architecture)
+- [Day-2 operations](#day-2-operations)
+- [Local development](#local-development)
+- [Project structure](#project-structure)
 - [Troubleshooting](#troubleshooting)
 - [Customization](#customization)
 - [Contributing](#contributing)
 - [License](#license)
 - [Acknowledgments](#acknowledgments)
 - [Support](#support)
+- [Star history](#star-history)
 
 ---
 
-## Features
+## What's inside
 
-### Core Security & Access
-- **Enterprise Google OAuth2 Authentication** - Secure user verification
-- **Public Internet Access** - Via Tailscale Funnel (no port forwarding)
-- **Zero Trust Security** - Email-based authorization control
-- **Dynamic Route Manager** - Web UI for managing reverse proxy routes
+### Security & access control
+- Google OAuth2 front door with email allow lists
+- Tight integration with Tailscale Funnel (no port-forwarding required)
+- Configurable upstream TLS verification for zero-trust backends
 
-### Setup & Configuration
-- **Beautiful Web Setup Wizard** - Modern gradient UI with real-time validation
-- **One-Command Deployment** - `python setup-wizard.py` and you're done
-- **Auto-Generated Secrets** - Cryptographically secure with one click
-- **Intelligent Configuration** - Load, edit, and save `.env` files easily
+### Route management & health
+- Web-based Route Manager with create/update/delete/enable/disable
+- Background connectivity checks with configurable intervals
+- REST API for automation (`/api/routes`, `/api/routes/<id>/toggle`, etc.)
 
-### Developer Experience
-- **Containerized Deployment** - Docker Compose for easy management
-- **Development Mode** - Optional DEV_MODE to bypass OAuth2 locally
-- **Cross-Platform Support** - Works on Linux, macOS, and Windows
-- **Docker Controls** - Start/stop containers from web UI
+### Developer experience
+- Cross-platform setup wizard served locally via Flask
+- Centralised configuration loader (`app/config.py`) for predictable overrides
+- Development mode toggle that bypasses OAuth while you iterate locally
+- Unit tests that cover TinyDB routing logic and proxy behaviour
+
+### Operations-friendly by default
+- Structured request logging and `/health` heartbeat endpoint
+- Headers/logs viewers for quick debugging of forwarded identity
+- Works seamlessly on Linux, macOS, and Windows machines
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
 
 ---
 
-## Quick Start
+## Quick start
 
-### Web-Based Setup Wizard (Recommended)
-
-The easiest way to configure Shark Route Manager is using our **beautiful web interface**:
-
-**All Platforms (Linux/macOS/Windows):**
+Clone the repository first:
 
 ```bash
-# 1. Clone the repository
 git clone https://github.com/HaiNick/Shark-no-Ninsho-Mon
 cd Shark-no-Ninsho-Mon
+```
 
-# 2. Install Flask
+### Option A — Web-based setup wizard (recommended)
+
+The wizard validates prerequisites, generates secrets, and writes your `.env`.
+
+```bash
+python -m venv .venv
+source .venv/bin/activate        # PowerShell: .venv\Scripts\Activate.ps1
 pip install flask
-
-# 3. Run setup wizard (with sudo/admin recommended)
 python setup-wizard.py
-
-# 4. Open browser to: http://localhost:8080
 ```
 
-**What the Setup Wizard Provides:**
+Open your browser to [http://localhost:8080](http://localhost:8080) and follow the guided checks:
 
-**Comprehensive System Checks**
-- Admin/sudo privileges detection
-- Docker installation & daemon status
-- Docker Compose availability
-- Tailscale installation & running status
-- Python version compatibility
+1. Confirm Docker, Docker Compose, and Tailscale are installed and running.
+2. Paste Google OAuth2 client credentials and a Tailscale Funnel hostname.
+3. Generate secrets and save the resulting `.env`.
+4. (Optional) Start the Docker stack from the wizard once configuration is complete.
 
-**Web Interface Features**
-- Beautiful modern gradient UI
-- Real-time form validation
-- Auto-generated secure secrets (one-click)
-- Load existing configuration
-- Helpful error messages
+### Option B — Manual configuration & compose
 
-**Configuration Management**
-- Google OAuth2 Client credentials
-- Tailscale Funnel hostname
-- Development mode toggle (bypass OAuth2 for testing)
-- Creates `.env` file automatically
-
-**Docker Integration**
-- Start containers directly from web UI
-- Stop containers with one click
-- Real-time status feedback
-
-**Benefits:**
-- **Cross-platform** - Single Python file works everywhere
-- **Beautiful UI** - No more terminal prompts
-- **Validated Input** - Real-time validation with helpful hints
-- **Secure** - Auto-generates cryptographically secure secrets
-- **Fast** - Complete setup in minutes
-
-<p align="right">(<a href="#readme-top">back to top</a>)</p>
-
-### Manual Setup (Advanced)
-
-#### 3. Setup Allowed Users
-
-Edit `emails.txt` with allowed Google accounts:
-
-```txt
-your.email@gmail.com
-colleague@company.com
-admin@domain.org
-```
-
-#### 4. Deploy
-
-```bash
-docker compose up -d --build
-tailscale funnel 4180
-```
-
-#### 5. Access Your App
-
-Visit: `https://your-host.your-tailnet.ts.net`
-
----
-
-## Architecture
-
-### Infrastructure: Tailscale Funnel → OAuth2 Proxy → Flask
-
-```mermaid
-graph TB
-  %% High-level infrastructure (GitHub-safe)
-  subgraph Client
-    U[Internet users]
-  end
-
-  subgraph Host[Your server - Tailscale node]
-    subgraph TS[Tailscale]
-      TSd[tailscaled daemon]
-      Funnel[Tailscale Funnel]
-    end
-
-    subgraph DC[Docker Compose]
-      OAuth[oauth2-proxy listening on 4180]
-      App[Flask app listening on 5000]
-      Emails[(emails.txt allowlist)]
-      Env[.env with client id, client secret, cookie secret, hostname]
-    end
-  end
-
-  U -->|HTTPS| Funnel
-  Funnel -->|proxy to 4180| OAuth
-  OAuth -->|X-Forwarded-User and X-Forwarded-Email| App
-
-  OAuth -.->|/oauth2/callback| Google[Google OAuth2 identity provider]
-  OAuth -.->|allowlist check| Emails
-  Env -.-> OAuth
-  Env -.-> App
-  TSd -.-> Funnel
-
-  App -.->|/api/whoami, /headers, /health| U
-```
-
-### Request Flow: End-to-End OAuth via Tailscale Funnel
-
-```mermaid
-sequenceDiagram
-  %% End-to-end auth + proxy sequence
-  participant U as User (Browser)
-  participant F as Tailscale Funnel (HTTPS)
-  participant O as oauth2-proxy (:4180)
-  participant G as Google OAuth2 (IdP)
-  participant A as Flask App (:5000)
-  participant E as emails.txt (allowlist)
-
-  U->>F: GET https://your-host.your-tailnet.ts.net/
-  F->>O: Proxy request
-  O-->>U: 302 Redirect to Google login
-  U->>G: Authenticate (openid email)
-  G-->>O: Redirect with code
-  O->>G: Exchange code for tokens
-  O->>O: Verify email from ID token
-  O->>E: Check against allowlist
-  O-->>U: Set session cookie
-  O->>A: Forward request with auth headers
-  A-->>U: Protected content (/ , /api/whoami , /headers)
-```
-
-**Security Flow:**
-
-1. [GLOBE] **Public Access** → User visits your Tailscale Funnel URL
-2. [LOCK] **Authentication** → OAuth2 Proxy redirects to Google login
-3. [CHECK] **Authorization** → Email verified against authorized list
-4. [SHARK] **App Access** → User granted access to your protected application
-
-<p align="right">(<a href="#readme-top">back to top</a>)</p>
-
----
-
-## Prerequisites
-
-### Required Software
-
-- **Docker & Docker Compose** - Container runtime
-- **Tailscale** - VPN and Funnel access
-- **Git** - Repository cloning
-
-### Required Accounts
-
-- **Google Cloud Console** - OAuth2 application setup
-- **Tailscale Account** - Funnel capability enabled
-
-### Quick Install Commands
-
-**Ubuntu/Debian:**
-
-```bash
-# Docker
-curl -fsSL https://get.docker.com -o get-docker.sh
-sudo sh get-docker.sh
-
-# Tailscale
-curl -fsSL https://tailscale.com/install.sh | sh
-sudo tailscale login
-```
-
-**Windows:**
-
-```powershell
-# Docker Desktop - Download from https://www.docker.com/products/docker-desktop
-# Tailscale - Download from https://tailscale.com/download/windows
-```
+1. Copy the template and edit the resulting file:
+   ```bash
+   cp .env.template .env
+   # Windows PowerShell
+   # copy .env.template .env
+   ```
+2. Fill in the required values (see [Configuration](#configuration)).
+3. Allow desired accounts by editing `app/emails.txt` (one email per line).
+4. Build and launch the stack:
+   ```bash
+   docker compose up -d --build
+   tailscale funnel --bg 4180
+   ```
+5. Visit `https://<your-hostname>.ts.net` and sign in with an authorised email.
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
 
@@ -258,402 +114,280 @@ sudo tailscale login
 
 ## Configuration
 
-### Google OAuth2 Setup
-
-1. **Go to [Google Cloud Console](https://console.cloud.google.com/apis/credentials)**
-2. **Create OAuth2 Client ID** (Web application)
-3. **Set Authorized Redirect URI:**
-   ```
-   https://your-hostname.your-tailnet.ts.net/oauth2/callback
-   ```
-4. **Copy Client ID and Secret** for setup script
-
-### Tailscale Configuration
-
-1. **Enable Funnel** (if not already enabled):
-   ```bash
-   sudo tailscale funnel --help  # Check if available
-   ```
-2. **Note your hostname:**
-   ```bash
-   tailscale status | grep "your-hostname"
-   ```
-   Look for format: `your-hostname.your-tailnet.ts.net`
-
-### Email Authorization
-
-The setup script will help you configure `emails.txt` with authorized users:
-
-```txt
-# Authorized emails for Shark Authentication
-user1@company.com
-user2@gmail.com
-admin@domain.org
-```
-
----
-
-## Environment Configuration
-
-Create a `.env` file with the following variables:
+### Required secrets (`.env`)
 
 ```bash
-# Google OAuth2 Client Credentials
+# Google OAuth2
 OAUTH2_PROXY_CLIENT_ID=your-client-id
 OAUTH2_PROXY_CLIENT_SECRET=your-client-secret
 
-# Cookie Secret (32 random bytes, URL-safe base64)
-OAUTH2_PROXY_COOKIE_SECRET=your-base64-cookie-secret
+# Session cookie secret (32 random bytes, base64)
+OAUTH2_PROXY_COOKIE_SECRET=your-cookie-secret
 
-# Tailscale Funnel Configuration
-FUNNEL_HOST=https://your-hostname.your-tailnet.ts.net
-FUNNEL_HOSTNAME=your-host.your-tailnet.ts.net
-```
-
-**Generate Cookie Secret:**
-
-```bash
-# Linux/Mac
-head -c 32 /dev/urandom | base64
-
-# Windows PowerShell
-[Convert]::ToBase64String((1..32 | ForEach-Object { Get-Random -Maximum 256 }))
-
-# Or use interactive setup (automatically generates)
-./setup.sh  # Linux/Mac
-.\setup.ps1  # Windows
-```
-
-<p align="right">(<a href="#readme-top">back to top</a>)</p>
-
-#### 3. User Access Control
-
-Edit `emails.txt` with allowed Google accounts:
-
-```txt
-your.primary@gmail.com
-colleague@company.com
-# Add break-glass account recommended
-```
-
----
-
-## Deployment
-
-### Start the Stack
-
-```bash
-# Build and start services
-docker compose up -d --build
-
-# Check service status
-docker compose ps
-docker compose logs -f oauth2-proxy
-```
-
-### Enable Public Access
-
-```bash
-# Start Tailscale Funnel
-tailscale funnel 4180
-
-# Or run in background
-tailscale funnel --bg 4180
-
-# Verify setup
-tailscale funnel status
-```
-
-<p align="right">(<a href="#readme-top">back to top</a>)</p>
-
----
-
-## Testing & Verification
-
-### Web Testing
-
-1. **Main App:** `https://your-host.your-tailnet.ts.net`
-
-   - Should redirect to Google login
-   - Sign in with allowed email
-   - See "It works" page with your email
-
-2. **API Endpoints:**
-   - `https://your-host.your-tailnet.ts.net/api/whoami` - JSON user info
-   - `https://your-host.your-tailnet.ts.net/headers` - Authentication headers
-
-### CLI Verification
-
-```bash
-# Check Funnel status
-tailscale funnel status
-
-# Verify port binding (Linux)
-ss -tulpen | grep 4180
-
-# Check container logs
-docker compose logs oauth2-proxy
-docker compose logs app
-```
-
----
-
-## Stopping & Cleanup
-
-### Stop Public Access
-
-```bash
-# Turn off Funnel
-tailscale funnel off
-
-# Verify it's off
-tailscale funnel status
-```
-
-### Stop Services
-
-```bash
-# Stop containers (keep data)
-docker compose stop
-
-# Stop and remove containers
-docker compose down
-```
-
----
-
-## Manual Configuration
-
-<details>
-<summary>Advanced users can configure manually</summary>
-
-### Environment Variables (`.env`)
-
-```bash
-# Google OAuth2 Client Credentials
-OAUTH2_PROXY_CLIENT_ID=your-client-id
-OAUTH2_PROXY_CLIENT_SECRET=your-client-secret
-
-# Cookie Secret (32 random bytes, URL-safe base64)
-OAUTH2_PROXY_COOKIE_SECRET=your-base64-cookie-secret
-
-# Tailscale Funnel Configuration
+# Tailscale Funnel
 FUNNEL_HOST=https://your-hostname.your-tailnet.ts.net
 FUNNEL_HOSTNAME=your-hostname.your-tailnet.ts.net
 ```
 
-### Manual Deployment
+Generate a cookie secret:
 
 ```bash
-# Start services
-docker compose up -d --build
+# Linux / macOS
+head -c 32 /dev/urandom | base64
 
-# Start Tailscale Funnel
-tailscale funnel 4180 &
-
-# Check status
-docker compose logs
-tailscale funnel status
+# Windows PowerShell
+[Convert]::ToBase64String((1..32 | ForEach-Object { Get-Random -Maximum 256 }))
 ```
 
-</details>
+The setup wizard performs these steps automatically, but manual deployments can still follow the template above.
+
+### Optional overrides (read by `app/config.py`)
+
+| Variable | Default | Description |
+| --- | --- | --- |
+| `ROUTES_DB_PATH` | `/app/routes.json` | TinyDB route store location |
+| `EMAILS_FILE` | `/app/emails.txt` | Authorised email list |
+| `HEALTH_CHECK_ENABLED` | `true` | Toggle background route health worker |
+| `HEALTH_CHECK_INTERVAL` | `300` | Seconds between health probes (>= 0) |
+| `UPSTREAM_SSL_VERIFY` | `false` | Verify upstream TLS certificates when proxying |
+| `DEV_MODE` | `false` | Bypass OAuth and treat every user as authorised |
+| `SECRET_KEY` | auto-generated | Flask session key (wizard fills this in) |
+
+> **Windows note:** Replace Unix-style paths with native paths when running natively (e.g. `ROUTES_DB_PATH=C:\\Users\\you\\Shark-no-Ninsho-Mon\\app\\routes.json`).
+
+<p align="right">(<a href="#readme-top">back to top</a>)</p>
 
 ---
 
-## Project Structure
+## Architecture
+
+### High-level infrastructure
+
+```mermaid
+graph TB
+  subgraph Client
+    U[Internet user]
+  end
+  subgraph Host[Your Tailscale node]
+    subgraph TS[Tailscale]
+      Funnel[Tailscale Funnel]
+    end
+    subgraph Compose[Docker Compose]
+      OAuth[oauth2-proxy :4180]
+      App[Flask gateway :5000]
+      Emails[(emails.txt)]
+      Routes[(routes.json)]
+    end
+  end
+  U -->|HTTPS| Funnel
+  Funnel --> OAuth
+  OAuth -->|X-Forwarded headers| App
+  OAuth -.-> Emails
+  App -.-> Routes
+  OAuth -.->|/oauth2/callback| Google[Google OAuth]
+  App -.->|UI/API| U
+```
+
+### Request flow
+
+```mermaid
+sequenceDiagram
+  participant U as User
+  participant F as Funnel (HTTPS)
+  participant O as oauth2-proxy
+  participant G as Google OAuth
+  participant A as Flask Gateway
+  participant D as Route Manager (TinyDB)
+
+  U->>F: GET https://host.ts.net/
+  F->>O: Forward request
+  O-->>U: Redirect to Google login
+  U->>G: Authenticate
+  G-->>O: Authorisation code
+  O->>G: Exchange for ID token
+  O->>O: Check email against allow list
+  O->>A: Forward request with identity headers
+  A->>D: Resolve route definition
+  A-->>U: Proxy response or dashboard
+```
+
+<p align="right">(<a href="#readme-top">back to top</a>)</p>
+
+---
+
+## Day-2 operations
+
+### Start or update the stack
+
+```bash
+docker compose up -d --build
+```
+
+### Verify
+
+```bash
+# Show running containers
+docker compose ps
+
+# Stream application logs
+docker compose logs -f app
+
+docker compose logs -f oauth2-proxy
+
+# Check Tailscale Funnel
+tailscale funnel status
+```
+
+### Stop safely
+
+```bash
+# Disable public access
+tailscale funnel off
+
+# Stop containers (retain volumes)
+docker compose stop
+
+# Tear everything down
+docker compose down
+```
+
+<p align="right">(<a href="#readme-top">back to top</a>)</p>
+
+---
+
+## Local development
+
+1. Create a virtual environment and install dependencies:
+   ```bash
+   python -m venv .venv
+   source .venv/bin/activate        # PowerShell: .venv\Scripts\Activate.ps1
+   pip install -r app/requirements.txt
+   ```
+2. Copy `.env.template` to `.env` and set `DEV_MODE=true` (no OAuth required).
+3. Run the development server:
+   ```bash
+   python app/dev.py
+   ```
+4. Visit [http://localhost:8000](http://localhost:8000). The dev runner auto-adds `dev@localhost` to the allow list and keeps health checks disabled unless you opt in.
+
+<p align="right">(<a href="#readme-top">back to top</a>)</p>
+
+---
+
+## Project structure
 
 ```
 Shark-no-Ninsho-Mon/
-├── docker-compose.yml        # Container orchestration
-├── .env                      # Environment configuration (auto-generated)
-├── .env.template             # Environment template
-├── .gitignore                # Git ignore rules
-├── README.md                 # This documentation
-├── CHANGELOG.md              # Version history
-├── SECURITY.md               # Security guidelines
-├── LICENSE                   # MIT License
-│
-├── setup-wizard.py           # Web-based setup wizard (NEW!)
-├── setup_templates/          # Setup wizard HTML
-│   └── setup_wizard.html     # Beautiful web interface
-├── generate-secrets.py       # Standalone secret generator
-│
-└── app/                      # Flask application
-    ├── Dockerfile            # Application container
-    ├── app.py                # Main Flask app with route manager
-    ├── routes_db.py          # TinyDB route manager
-    ├── proxy_handler.py      # Request proxy handler
-    ├── dev.py                # Development runner
-    ├── requirements.txt      # Python dependencies
-    │
-    ├── templates/            # HTML templates
-    │   ├── base.html         # Base template
-    │   ├── index.html        # Dashboard
-    │   ├── admin.html        # Route manager UI
-    │   ├── headers.html      # Request headers view
-    │   ├── logs.html         # Access logs
-    │   ├── health_page.html  # Health check
-    │   ├── unauthorized.html # 403 page
-    │   └── 404.html          # 404 page
-    │
-    ├── static/               # CSS and JavaScript
-    │   ├── css/
-    │   │   ├── style.css     # Main stylesheet
-    │   │   └── admin.css     # Admin UI styles
-    │   └── js/
-    │       ├── app.js        # Main JavaScript
-    │       └── admin.js      # Route manager logic
-    │
-    └── test_*.py             # Unit tests
+├── docker-compose.yml
+├── setup-wizard.py              # Cross-platform configuration wizard
+├── setup_templates/             # Wizard UI assets
+├── generate-secrets.py          # Stand-alone secret generator
+├── app/
+│   ├── app.py                   # Flask gateway + REST API
+│   ├── config.py                # Centralised settings loader
+│   ├── proxy_handler.py         # Reverse proxy implementation
+│   ├── routes_db.py             # TinyDB route manager
+│   ├── dev.py                   # Local development entry point
+│   ├── requirements.txt         # Python dependencies
+│   ├── templates/               # Jinja templates for UI
+│   └── static/                  # CSS/JS assets
+├── README.md
+├── CHANGELOG.md
+├── SECURITY.md
+└── LICENSE
 ```
+
+<p align="right">(<a href="#readme-top">back to top</a>)</p>
 
 ---
 
 ## Troubleshooting
 
-### Common Issues & Solutions
-
-**Docker Issues:**
+### Docker or Compose issues
 
 ```bash
-# Permission errors
+# Permission problems
 sudo docker compose up -d --build
 
-# Check container logs
-docker compose logs app
-docker compose logs oauth2-proxy
+# Tail container logs
+docker compose logs -f app
+docker compose logs -f oauth2-proxy
 ```
 
-**Tailscale Funnel Issues:**
+### Tailscale Funnel issues
 
 ```bash
-# Check Tailscale status
+# Ensure the daemon is connected
 tailscale status
 
-# Restart funnel with sudo
-sudo tailscale funnel 4180
+# Restart the funnel
+tailscale funnel off
+tailscale funnel --bg 4180
 
-# Set operator permissions
+# Grant operator privileges (Linux)
 sudo tailscale set --operator=$USER
 ```
 
-**Authentication Issues:**
+### Authentication issues
 
 ```bash
-# Verify OAuth2 configuration
-cat .env | grep OAUTH2
+# Double-check OAuth values
+grep OAUTH2 .env
 
-# Check authorized emails
-cat emails.txt
+# Inspect authorised emails
+cat app/emails.txt
 
-# Verify redirect URI in Google Console
-echo "https://$(grep FUNNEL_HOSTNAME .env | cut -d= -f2)/oauth2/callback"
+# Confirm redirect URL
+python - <<'PY'
+from dotenv import dotenv_values
+env = dotenv_values('.env')
+print(f"https://{env.get('FUNNEL_HOSTNAME','<missing>')}/oauth2/callback")
+PY
 ```
 
-**Access Issues:**
+### Route or proxy debugging
 
 ```bash
-# Check if services are running
-docker compose ps
+# Check route definitions
+python - <<'PY'
+from app.routes_db import RouteManager
+rm = RouteManager('app/routes.json')
+print(rm.get_all_routes())
+PY
 
-# Verify Tailscale Funnel status
-tailscale funnel status
-
-# Test local access
-curl -I http://localhost:4180
+# Exercise the REST API
+curl -H "X-Forwarded-Email: dev@localhost" http://localhost:8000/api/routes
 ```
 
-### Debug Commands
+### Need a fresh configuration?
+
+Re-run the setup wizard:
 
 ```bash
-# Full system check
-./setup.sh  # Run setup again for diagnostics
-
-# View all logs
-docker compose logs -f
-
-# Check Funnel logs
-cat /tmp/tailscale_funnel.log
-
-# Network connectivity test
-tailscale ping $(tailscale status --json | jq -r '.Self.DNSName')
+python setup-wizard.py
 ```
+
+<p align="right">(<a href="#readme-top">back to top</a>)</p>
 
 ---
 
 ## Customization
 
-### Customize Your App
+- **Bring your own app:** Replace the Flask routes in `app/app.py` or proxy to additional backends through the Route Manager.
+- **Integrate with other identity providers:** OAuth2 Proxy supports many providers—adjust the environment variables and compose file accordingly.
+- **Harden security:** Enforce IP restrictions, tweak cookie policies, or enable TLS verification upstream using the optional environment variables.
+- **Automate routes:** Use the REST API to seed or edit routes from CI/CD pipelines.
 
-**Replace the Flask app** with your own application:
-
-1. **Modify `app/app.py`** with your application logic
-2. **Update `app/requirements.txt`** with your dependencies  
-3. **Customize `app/templates/`** with your HTML templates
-4. **Add assets to `app/static/`** for CSS/JS/images
-5. **Rebuild:** `docker compose up -d --build`
-
-### Adding Multiple Applications & Advanced Features
-
-Want to protect multiple apps, add Grafana/Jupyter, or set up complex routing? 
-
-[!] **[See EXTRA-FEATURES.md](EXTRA-FEATURES.md)** for comprehensive guides on:
-
-- **Multiple Applications** - Path-based routing, NGINX integration
-- **Popular Integrations** - Grafana, Jupyter, Portainer, Home Lab setups  
-- **Advanced Security** - Role-based access, IP restrictions, session management
-- **Configuration Examples** - Ready-to-use Docker Compose configurations
-
-### Advanced Security
-
-**IP Restrictions** (add to `docker-compose.yml`):
-
-```yaml
-environment:
-  OAUTH2_PROXY_TRUSTED_IPS: "192.168.1.0/24,10.0.0.0/8"
-```
-
-**Session Management:**
-
-```yaml
-environment:
-  OAUTH2_PROXY_COOKIE_EXPIRE: "24h"
-  OAUTH2_PROXY_COOKIE_REFRESH: "1h"
-```
-
-**Additional OAuth2 Scopes:**
-
-```yaml
-environment:
-  OAUTH2_PROXY_SCOPE: "openid email profile"
-```
+<p align="right">(<a href="#readme-top">back to top</a>)</p>
 
 ---
 
 ## Contributing
 
-We welcome contributions! Here's how to get started:
-
-1. **Fork** the repository
-2. **Create** a feature branch (`git checkout -b feature/amazing-feature`)
-3. **Commit** your changes (`git commit -m 'Add amazing feature'`)
-4. **Push** to the branch (`git push origin feature/amazing-feature`)
-5. **Open** a Pull Request
-
-### Development Setup
-
-```bash
-# Clone your fork
-git clone https://github.com/your-username/Shark-no-Ninsho-Mon
-cd Shark-no-Ninsho-Mon
-
-# Create development branch
-git checkout -b feature/my-feature
-
-# Test your changes
-./setup.sh  # Test setup script
-docker compose up -d --build  # Test deployment
-```
+1. Fork the repository and create a branch: `git checkout -b feature/my-feature`
+2. Make your changes and include tests where practical
+3. Run the Flask tests or your Linux-based validation pipeline
+4. Open a pull request describing the motivation and testing performed
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
 
@@ -661,18 +395,16 @@ docker compose up -d --build  # Test deployment
 
 ## License
 
-This project is licensed under the **MIT License** - see the [LICENSE](LICENSE) file for details.
-
-<p align="right">(<a href="#readme-top">back to top</a>)</p>
+This project is distributed under the [MIT License](LICENSE).
 
 ---
 
 ## Acknowledgments
 
-- **[Tailscale](https://tailscale.com/)** - For making secure networking simple
-- **[OAuth2 Proxy](https://oauth2-proxy.github.io/oauth2-proxy/)** - For robust authentication
-- **[Docker](https://www.docker.com/)** - For containerization excellence
-- **[Dracula Theme](https://draculatheme.com/)** - For beautiful terminal colors
+- [Tailscale](https://tailscale.com/) for effortless secure networking
+- [OAuth2 Proxy](https://oauth2-proxy.github.io/oauth2-proxy/) for rock-solid auth
+- [Dracula Theme](https://draculatheme.com/) inspiration for the setup wizard facelift
+- [Material Symbols](https://fonts.google.com/icons) by Google, used under the Apache License 2.0
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
 
@@ -680,25 +412,22 @@ This project is licensed under the **MIT License** - see the [LICENSE](LICENSE) 
 
 ## Support
 
-**Need help?** We're here for you:
+- **Issues & bugs:** [github.com/HaiNick/Shark-no-Ninsho-Mon/issues](https://github.com/HaiNick/Shark-no-Ninsho-Mon/issues)
+- **Ideas & feedback:** [github.com/HaiNick/Shark-no-Ninsho-Mon/discussions](https://github.com/HaiNick/Shark-no-Ninsho-Mon/discussions)
+- **Questions:** Start a discussion or re-run the setup wizard to gather diagnostics
 
-- [DOCS] **Documentation:** Check this README thoroughly
-- [BUG] **Bug Reports:** [Open an issue](https://github.com/HaiNick/Shark-no-Ninsho-Mon/issues)
-- [IDEA] **Feature Requests:** [Start a discussion](https://github.com/HaiNick/Shark-no-Ninsho-Mon/discussions)
-- [CHAT] **Community:** Join our discussions for community support
+Before opening an issue, capture:
 
-**Before opening an issue:**
-
-1. [CHECK] Run the setup script again to verify configuration
-2. [CHECK] Check the troubleshooting section above
-3. [CHECK] Include relevant logs and error messages
-4. [CHECK] Specify your operating system and versions
+1. OS and version (Windows, Ubuntu, etc.)
+2. Output from `tailscale status`, `docker compose ps`, and key container logs
+3. Any modifications to `.env`, Docker Compose, or Route Manager data
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
 
 ---
 
-## Star History
+## Star history
+
 <div align="center">
 
 [![Star History Chart](https://api.star-history.com/svg?repos=HaiNick/Shark-no-Ninsho-Mon&type=Date)](https://star-history.com/#HaiNick/Shark-no-Ninsho-Mon&Date)
@@ -713,11 +442,13 @@ This project is licensed under the **MIT License** - see the [LICENSE](LICENSE) 
 
 **Made with <3 for secure self-hosting**
 
-[![Star this repo](https://img.shields.io/github/stars/HaiNick/Shark-no-Ninsho-Mon?style=social)](https://github.com/HaiNick/Shark-no-Ninsho-Mon) • 
-[![Report Bug](https://img.shields.io/badge/Report-Bug-red)](https://github.com/HaiNick/Shark-no-Ninsho-Mon/issues) • 
+[![Star this repo](https://img.shields.io/github/stars/HaiNick/Shark-no-Ninsho-Mon?style=social)](https://github.com/HaiNick/Shark-no-Ninsho-Mon)
+•
+[![Report Bug](https://img.shields.io/badge/Report-Bug-red)](https://github.com/HaiNick/Shark-no-Ninsho-Mon/issues)
+•
 [![Request Feature](https://img.shields.io/badge/Request-Feature-blue)](https://github.com/HaiNick/Shark-no-Ninsho-Mon/issues)
 
-**Found this helpful? Consider giving it a** ***star***
+If this project helps you, a star goes a long way!
 
 </div>
 

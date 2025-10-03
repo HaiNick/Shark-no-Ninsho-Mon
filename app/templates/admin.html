@@ -4,7 +4,35 @@
 
 {% block extra_css %}
 <link rel="stylesheet" href="{{ url_for('static', filename='css/admin.css') }}">
-<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+<style>
+.icon {
+    width: 20px;
+    height: 20px;
+    display: inline-block;
+    vertical-align: middle;
+}
+
+.stat-icon .icon {
+    width: 28px;
+    height: 28px;
+}
+
+.spinner {
+    width: 20px;
+    height: 20px;
+    display: inline-block;
+    vertical-align: middle;
+}
+
+.spinner svg {
+    animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
+}
+</style>
 {% endblock %}
 
 {% block content %}
@@ -16,7 +44,7 @@
             <p class="subtitle">Manage reverse proxy routes to your services</p>
         </div>
         <button class="btn btn-primary" onclick="showAddModal()">
-            <i class="fas fa-plus"></i>
+            <img src="{{ url_for('static', filename='icons/add.svg') }}" alt="" class="icon" aria-hidden="true">
             Add Route
         </button>
     </div>
@@ -25,7 +53,7 @@
     <div class="stats-grid" id="stats-grid">
         <div class="stat-card">
             <div class="stat-icon" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);">
-                <i class="fas fa-route"></i>
+                <img src="{{ url_for('static', filename='icons/alt_route.svg') }}" alt="" class="icon" aria-hidden="true">
             </div>
             <div class="stat-info">
                 <div class="stat-value" id="stat-total">0</div>
@@ -35,7 +63,7 @@
         
         <div class="stat-card">
             <div class="stat-icon" style="background: linear-gradient(135deg, #48bb78 0%, #38a169 100%);">
-                <i class="fas fa-check-circle"></i>
+                <img src="{{ url_for('static', filename='icons/check_circle.svg') }}" alt="" class="icon" aria-hidden="true">
             </div>
             <div class="stat-info">
                 <div class="stat-value" id="stat-online">0</div>
@@ -45,7 +73,7 @@
         
         <div class="stat-card">
             <div class="stat-icon" style="background: linear-gradient(135deg, #f56565 0%, #c53030 100%);">
-                <i class="fas fa-times-circle"></i>
+                <img src="{{ url_for('static', filename='icons/cloud_off.svg') }}" alt="" class="icon" aria-hidden="true">
             </div>
             <div class="stat-info">
                 <div class="stat-value" id="stat-offline">0</div>
@@ -55,7 +83,7 @@
         
         <div class="stat-card">
             <div class="stat-icon" style="background: linear-gradient(135deg, #ed8936 0%, #dd6b20 100%);">
-                <i class="fas fa-toggle-on"></i>
+                <img src="{{ url_for('static', filename='icons/task_alt.svg') }}" alt="" class="icon" aria-hidden="true">
             </div>
             <div class="stat-info">
                 <div class="stat-value" id="stat-enabled">0</div>
@@ -70,11 +98,11 @@
             <h2>Routes</h2>
             <div class="table-actions">
                 <div class="search-box">
-                    <i class="fas fa-search"></i>
+                    <img src="{{ url_for('static', filename='icons/search.svg') }}" alt="" class="icon" aria-hidden="true" style="position: absolute; left: 1rem;">
                     <input type="text" id="search-input" placeholder="Search routes..." onkeyup="filterRoutes()">
                 </div>
                 <button class="btn btn-secondary" onclick="refreshRoutes()">
-                    <i class="fas fa-sync-alt"></i>
+                    <img src="{{ url_for('static', filename='icons/refresh.svg') }}" alt="" class="icon" aria-hidden="true">
                     Refresh
                 </button>
             </div>
@@ -96,7 +124,9 @@
                 <tbody id="routes-tbody">
                     <tr>
                         <td colspan="7" class="loading">
-                            <i class="fas fa-spinner fa-spin"></i>
+                            <span class="spinner">
+                                <img src="{{ url_for('static', filename='icons/progress_activity.svg') }}" alt="" aria-hidden="true">
+                            </span>
                             Loading routes...
                         </td>
                     </tr>
@@ -173,7 +203,7 @@
             <div class="modal-footer">
                 <button type="button" class="btn btn-secondary" onclick="closeModal()">Cancel</button>
                 <button type="submit" class="btn btn-primary">
-                    <i class="fas fa-save"></i>
+                    <img src="{{ url_for('static', filename='icons/check.svg') }}" alt="" class="icon" aria-hidden="true">
                     Save Route
                 </button>
             </div>

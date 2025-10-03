@@ -24,8 +24,8 @@ def generate_flask_secret_key():
 def update_env_file(env_path, oauth_secret, flask_secret):
     """Update .env file with generated secrets"""
     if not env_path.exists():
-        print(f"❌ Error: {env_path} not found!")
-        print(f"💡 Tip: Copy .env.template to .env first:")
+    print(f"Error: {env_path} not found!")
+    print("Tip: Copy .env.template to .env first:")
         print(f"   cp .env.template .env")
         return False
     
@@ -69,7 +69,7 @@ def update_env_file(env_path, oauth_secret, flask_secret):
 
 def main():
     print("=" * 70)
-    print("🔐 Secret Generator for Shark-no-Ninsho-Mon")
+    print("Secret Generator for Shark-no-Ninsho-Mon")
     print("=" * 70)
     print()
     
@@ -79,25 +79,25 @@ def main():
         env_path = Path(__file__).parent / '.env'
     
     if not env_path.exists():
-        print("❌ Error: .env file not found!")
+    print("Error: .env file not found!")
         print()
-        print("📝 Please create .env first:")
+    print("Please create .env first:")
         print("   cp .env.template .env")
         print()
         sys.exit(1)
     
-    print(f"📄 Found .env file: {env_path.absolute()}")
+    print(f"Found .env file: {env_path.absolute()}")
     print()
     
     # Generate secrets
-    print("🔄 Generating secrets...")
+    print("Generating secrets...")
     oauth_secret = generate_oauth_cookie_secret()
     flask_secret = generate_flask_secret_key()
-    print("✅ Secrets generated!")
+    print("Secrets generated!")
     print()
     
     # Show secrets
-    print("📋 Generated Secrets:")
+    print("Generated Secrets:")
     print("-" * 70)
     print(f"OAUTH2_PROXY_COOKIE_SECRET={oauth_secret}")
     print(f"SECRET_KEY={flask_secret}")
@@ -105,32 +105,32 @@ def main():
     print()
     
     # Ask for confirmation
-    response = input("❓ Update .env file with these secrets? [Y/n]: ").strip().lower()
+    response = input("Update .env file with these secrets? [Y/n]: ").strip().lower()
     
     if response in ['', 'y', 'yes']:
         updated = update_env_file(env_path, oauth_secret, flask_secret)
         
         if updated:
             print()
-            print("✅ Successfully updated .env file!")
+            print("Successfully updated .env file!")
             print(f"   Updated: {', '.join(updated)}")
             print()
-            print("🎉 Your secrets are ready!")
+            print("Your secrets are ready!")
             print()
-            print("⚠️  Important Security Notes:")
+            print("Important Security Notes:")
             print("   1. Never commit .env to git (it's already in .gitignore)")
             print("   2. Keep these secrets safe and private")
             print("   3. Generate new secrets for production deployments")
             print()
         else:
             print()
-            print("❌ Failed to update .env file")
+            print("Failed to update .env file")
             print()
     else:
         print()
-        print("❌ Cancelled. No changes made to .env")
+    print("Cancelled. No changes made to .env")
         print()
-        print("💡 You can manually copy the secrets above into your .env file")
+    print("You can manually copy the secrets above into your .env file")
         print()
 
 
@@ -138,8 +138,8 @@ if __name__ == '__main__':
     try:
         main()
     except KeyboardInterrupt:
-        print("\n\n❌ Cancelled by user")
+        print("\n\nCancelled by user")
         sys.exit(1)
     except Exception as e:
-        print(f"\n❌ Error: {e}")
+        print(f"\nError: {e}")
         sys.exit(1)

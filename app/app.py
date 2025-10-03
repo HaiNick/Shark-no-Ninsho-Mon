@@ -8,8 +8,10 @@ import logging
 from datetime import datetime
 import os
 import threading
-import time
 from dotenv import load_dotenv
+from typing import Any, Dict, Set
+
+from config import get_settings
 
 # Load environment variables from .env file
 load_dotenv()
@@ -26,7 +28,9 @@ logger = logging.getLogger(__name__)
 
 # Initialize Flask app
 app = Flask(__name__)
-app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'dev-secret-key-change-in-production')
+
+settings = get_settings()
+app.config['SECRET_KEY'] = settings.secret_key
 
 # Initialize rate limiter
 limiter = Limiter(
@@ -37,18 +41,47 @@ limiter = Limiter(
 )
 
 # Initialize route manager and proxy handler
-route_manager = RouteManager('/app/routes.json')
-proxy_handler = ProxyHandler(route_manager)
+route_manager = RouteManager(settings.routes_db_path)
+proxy_handler = ProxyHandler(route_manager, verify_ssl=settings.upstream_ssl_verify)
 
-# Load authorized emails
-AUTHORIZED_EMAILS = set()
-emails_file = os.environ.get('EMAILS_FILE', '/app/emails.txt')
-if os.path.exists(emails_file):
-    with open(emails_file, 'r') as f:
-        AUTHORIZED_EMAILS = {line.strip().lower() for line in f if line.strip() and not line.startswith('#')}
+def _load_authorized_emails(path: str) -> Set[str]:
+    emails: Set[str] = set()
+
+    try:
+        with open(path, 'r', encoding='utf-8') as handle:
+            for line in handle:
+                stripped = line.strip()
+                if stripped and not stripped.startswith('#'):
+                    emails.add(stripped.lower())
+    except FileNotFoundError:
+        logger.warning(f"Emails file not found: {path}")
+    except OSError as exc:
+        logger.error(f"Failed to load emails file '{path}': {exc}")
+
+    return emails
+
+
+def refresh_authorized_emails() -> int:
+    """Reload authorized emails from disk."""
+    global AUTHORIZED_EMAILS
+    AUTHORIZED_EMAILS = _load_authorized_emails(settings.emails_file)
     logger.info(f"Loaded {len(AUTHORIZED_EMAILS)} authorized emails")
-else:
-    logger.warning(f"Emails file not found: {emails_file}")
+    return len(AUTHORIZED_EMAILS)
+
+
+AUTHORIZED_EMAILS: Set[str] = set()
+refresh_authorized_emails()
+
+
+def parse_bool(value: Any, default: bool = False) -> bool:
+    """Best effort boolean parsing for JSON payloads."""
+    if value is None:
+        return default
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, (int, float)):
+        return value != 0
+    return str(value).strip().lower() in {'1', 'true', 't', 'yes', 'on'}
 
 
 def get_user_email():
@@ -183,20 +216,23 @@ def api_create_route():
     if not is_authorized():
         return jsonify({'error': 'Unauthorized'}), 403
     
-    data = request.json
+    data = request.get_json(silent=True)
+
+    if not isinstance(data, dict):
+        return jsonify({'error': 'Request body must be a JSON object'}), 400
     
     try:
         route = route_manager.add_route(
             path=data.get('path'),
             name=data.get('name'),
             target_ip=data.get('target_ip'),
-            target_port=int(data.get('target_port')),
+            target_port=data.get('target_port'),
             protocol=data.get('protocol', 'http'),
-            enabled=data.get('enabled', True),
-            health_check=data.get('health_check', True),
-            timeout=int(data.get('timeout', 30)),
-            preserve_host=data.get('preserve_host', False),
-            websocket=data.get('websocket', False)
+            enabled=parse_bool(data.get('enabled', True), True),
+            health_check=parse_bool(data.get('health_check', True), True),
+            timeout=data.get('timeout', 30),
+            preserve_host=parse_bool(data.get('preserve_host', False)),
+            websocket=parse_bool(data.get('websocket', False))
         )
         
         logger.info(f"ROUTE_ADD - User: {email} | Path: {route['path']} | Target: {route['target_ip']}:{route['target_port']}")
@@ -238,23 +274,52 @@ def api_update_route(route_id):
     if not is_authorized():
         return jsonify({'error': 'Unauthorized'}), 403
     
-    data = request.json
+    data = request.get_json(silent=True)
+
+    if not isinstance(data, dict):
+        return jsonify({'error': 'Request body must be a JSON object'}), 400
     
     try:
-        # Validate data if provided
+        updates: Dict[str, Any] = {}
+
+        if 'path' in data:
+            updates['path'] = route_manager.validate_path(data['path'])
+
+        if 'name' in data:
+            updates['name'] = route_manager.validate_name(data['name'])
+
         if 'target_ip' in data:
             route_manager.validate_ip(data['target_ip'])
-        
+            updates['target_ip'] = data['target_ip']
+
         if 'target_port' in data:
-            route_manager.validate_port(int(data['target_port']))
-        
-        if 'path' in data:
-            data['path'] = route_manager.validate_path(data['path'])
-        
-        success = route_manager.update_route(route_id, data)
+            updates['target_port'] = route_manager.validate_port(data['target_port'])
+
+        if 'protocol' in data:
+            updates['protocol'] = route_manager.validate_protocol(data['protocol'])
+
+        if 'timeout' in data:
+            updates['timeout'] = route_manager.validate_timeout(data['timeout'])
+
+        if 'preserve_host' in data:
+            updates['preserve_host'] = parse_bool(data['preserve_host'])
+
+        if 'websocket' in data:
+            updates['websocket'] = parse_bool(data['websocket'])
+
+        if 'enabled' in data:
+            updates['enabled'] = parse_bool(data['enabled'])
+
+        if 'health_check' in data:
+            updates['health_check'] = parse_bool(data['health_check'])
+
+        if not updates:
+            return jsonify({'error': 'No valid fields provided'}), 400
+
+        success = route_manager.update_route(route_id, updates)
         
         if success:
-            logger.info(f"ROUTE_UPDATE - User: {email} | Route: {route_id} | Changes: {list(data.keys())}")
+            logger.info(f"ROUTE_UPDATE - User: {email} | Route: {route_id} | Changes: {list(updates.keys())}")
             return jsonify({'success': True, 'route': route_manager.get_route_by_id(route_id)})
         else:
             return jsonify({'error': 'Route not found'}), 404
@@ -382,26 +447,60 @@ def internal_error(e):
 # BACKGROUND HEALTH CHECK
 # ============================================================================
 
-def health_check_worker():
+health_check_stop_event = threading.Event()
+health_thread_lock = threading.Lock()
+health_thread = None
+
+
+def health_check_worker(stop_event: threading.Event, interval: int):
     """Background worker to check route health"""
-    while True:
+    logger.info(f"HEALTH_CHECK - Worker started with {interval}s interval")
+
+    while not stop_event.is_set():
         try:
-            time.sleep(300)  # Check every 5 minutes
-            
             routes = route_manager.get_all_routes()
             for route in routes:
                 if route.get('health_check', False) and route.get('enabled', True):
                     proxy_handler.test_connection(route['id'])
-            
+
             logger.info(f"HEALTH_CHECK - Checked {len(routes)} routes")
-        
+
         except Exception as e:
             logger.error(f"HEALTH_CHECK_ERROR - {str(e)}")
 
+        if stop_event.wait(interval):
+            break
 
-# Start health check worker
-health_thread = threading.Thread(target=health_check_worker, daemon=True)
-health_thread.start()
+
+def start_health_check_worker():
+    """Start the health check worker if enabled."""
+    global health_thread
+
+    if not settings.health_check_enabled:
+        logger.info("HEALTH_CHECK - Worker disabled by configuration")
+        return
+
+    interval = settings.health_check_interval
+    if interval <= 0:
+        logger.info("HEALTH_CHECK - Worker not started due to non-positive interval")
+        return
+
+    with health_thread_lock:
+        if health_thread and health_thread.is_alive():
+            return
+
+        health_check_stop_event.clear()
+        health_thread = threading.Thread(
+            target=health_check_worker,
+            args=(health_check_stop_event, interval),
+            daemon=True
+        )
+        health_thread.start()
+
+
+@app.before_first_request
+def _initialize_background_tasks():
+    start_health_check_worker()
 
 
 # ============================================================================
@@ -412,6 +511,9 @@ if __name__ == '__main__':
     port = int(os.environ.get('PORT', 8000))
     debug = os.environ.get('DEBUG', 'False').lower() == 'true'
     
+    if not debug or os.environ.get('WERKZEUG_RUN_MAIN') == 'true':
+        start_health_check_worker()
+
     logger.info(f"Starting Shark-no-Ninsho-Mon on port {port}")
     logger.info(f"Authorized emails: {len(AUTHORIZED_EMAILS)}")
     logger.info(f"Existing routes: {len(route_manager.get_all_routes())}")
