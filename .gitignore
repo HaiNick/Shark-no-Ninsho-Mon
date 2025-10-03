@@ -2,6 +2,7 @@
 .env
 .env.local
 .env.*.local
+app/.env
 
 # Production security - never commit these files
 admin.py

@@ -9,6 +9,10 @@ from datetime import datetime
 import os
 import threading
 import time
+from dotenv import load_dotenv
+
+# Load environment variables from .env file
+load_dotenv()
 
 from routes_db import RouteManager
 from proxy_handler import ProxyHandler
@@ -49,11 +53,21 @@ else:
 
 def get_user_email():
     """Get user email from OAuth2 proxy headers"""
-    return request.headers.get('X-Forwarded-Email', '').lower()
+    email = request.headers.get('X-Forwarded-Email', '').lower()
+    
+    # Development mode fallback
+    if not email and (os.environ.get('FLASK_ENV') == 'development' or os.environ.get('DEV_MODE') == 'true'):
+        return 'dev@localhost'
+    
+    return email
 
 
 def is_authorized():
     """Check if user is authorized"""
+    # Development mode bypass
+    if os.environ.get('FLASK_ENV') == 'development' or os.environ.get('DEV_MODE') == 'true':
+        return True
+    
     email = get_user_email()
     return email in AUTHORIZED_EMAILS
 

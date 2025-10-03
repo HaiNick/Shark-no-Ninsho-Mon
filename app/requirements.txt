@@ -2,6 +2,9 @@
 Flask>=3.0.0
 Werkzeug>=3.0.0
 
+# Environment variables
+python-dotenv>=1.0.0
+
 # Rate limiting and security
 Flask-Limiter>=3.5.0
 
