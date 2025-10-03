@@ -360,6 +360,31 @@ def api_docker_start():
                 'message': 'docker-compose.yml not found in current directory'
             }), 404
 
+        # Create required files before starting Docker to prevent Docker from creating them as directories
+        routes_file = Path('routes.json')
+        if not routes_file.exists():
+            routes_file.write_text('{"_default": {}}', encoding='utf-8')
+        elif routes_file.is_dir():
+            # If it's a directory, remove it and create as file
+            try:
+                routes_file.rmdir()
+                routes_file.write_text('{"_default": {}}', encoding='utf-8')
+            except OSError:
+                # Directory not empty, don't remove
+                pass
+        
+        emails_file = Path('emails.txt')
+        if not emails_file.exists():
+            emails_file.write_text('# Add authorized emails here (one per line)\n', encoding='utf-8')
+        elif emails_file.is_dir():
+            # If it's a directory, remove it and create as file
+            try:
+                emails_file.rmdir()
+                emails_file.write_text('# Add authorized emails here (one per line)\n', encoding='utf-8')
+            except OSError:
+                # Directory not empty, don't remove
+                pass
+
         result = None
         error_msg = None
         
@@ -590,6 +615,23 @@ def main():
         for warning in warnings:
             print(f"  {warning}")
         print()
+
+    # Create required files if they don't exist (prevent Docker from creating them as directories)
+    print("Checking required files...")
+    routes_file = Path('routes.json')
+    if not routes_file.exists():
+        routes_file.write_text('{"_default": {}}', encoding='utf-8')
+        print("  Created routes.json")
+    elif routes_file.is_dir():
+        print("  WARNING: routes.json exists as a directory! Please remove it manually.")
+    
+    emails_file = Path('emails.txt')
+    if not emails_file.exists():
+        emails_file.write_text('# Add authorized emails here (one per line)\n', encoding='utf-8')
+        print("  Created emails.txt")
+    elif emails_file.is_dir():
+        print("  WARNING: emails.txt exists as a directory! Please remove it manually.")
+    print()
 
     # Start Flask server
     print("=" * 70)

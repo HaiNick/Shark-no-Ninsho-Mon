@@ -24,8 +24,8 @@ def generate_flask_secret_key():
 def update_env_file(env_path, oauth_secret, flask_secret):
     """Update .env file with generated secrets"""
     if not env_path.exists():
-    print(f"Error: {env_path} not found!")
-    print("Tip: Copy .env.template to .env first:")
+        print(f"Error: {env_path} not found!")
+        print("Tip: Copy .env.template to .env first:")
         print(f"   cp .env.template .env")
         return False
     
@@ -79,9 +79,9 @@ def main():
         env_path = Path(__file__).parent / '.env'
     
     if not env_path.exists():
-    print("Error: .env file not found!")
+        print("Error: .env file not found!")
         print()
-    print("Please create .env first:")
+        print("Please create .env first:")
         print("   cp .env.template .env")
         print()
         sys.exit(1)
@@ -128,9 +128,9 @@ def main():
             print()
     else:
         print()
-    print("Cancelled. No changes made to .env")
+        print("Cancelled. No changes made to .env")
         print()
-    print("You can manually copy the secrets above into your .env file")
+        print("You can manually copy the secrets above into your .env file")
         print()
 
 

@@ -307,6 +307,37 @@ Shark-no-Ninsho-Mon/
 
 ## Troubleshooting
 
+### Docker created routes.json or emails.txt as directories
+
+If Docker Compose starts before these files exist, it may create them as directories instead of files. This is a common Docker volume mount behavior.
+
+**Fix it automatically:**
+```bash
+python fix-files.py
+```
+
+**Or fix manually:**
+```bash
+# Remove the directories (Windows PowerShell)
+Remove-Item -Recurse -Force routes.json
+Remove-Item -Recurse -Force emails.txt
+
+# Remove the directories (Linux/Mac)
+rm -rf routes.json emails.txt
+
+# Run setup wizard or create files manually
+python setup-wizard.py
+# OR
+echo '{"_default": {}}' > routes.json
+echo '# Add authorized emails here' > emails.txt
+```
+
+Then restart Docker:
+```bash
+docker compose down
+docker compose up -d --build
+```
+
 ### Docker or Compose issues
 
 ```bash
