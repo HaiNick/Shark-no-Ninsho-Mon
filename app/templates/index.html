@@ -1,6 +1,23 @@
 {% extends "base.html" %}
 
-{% block title %}Dashboard - Shark-no-Ninsho-Mon{% endblock %}
+{% block title %}Dashboard -         <div class="quick-links">
+            <a href="/whoami" class="quick-link">
+                <span class="link-icon">i</span>
+                <span>Who Am I</span>
+            </a>
+            <a href="/headers" class="quick-link">
+                <span class="link-icon">H</span>
+                <span>Request Headers</span>
+            </a>
+            <a href="/logs" class="quick-link">
+                <span class="link-icon">L</span>
+                <span>Application Logs</span>
+            </a>
+            <a href="/health" class="quick-link">
+                <span class="link-icon">✓</span>
+                <span>Health Check</span>
+            </a>
+        </div>n{% endblock %}
 
 {% block content %}
 <div class="container">
@@ -15,7 +32,6 @@
         <div class="card-header">
             <h2>Your Available Services</h2>
             <a href="/admin" class="btn btn-primary">
-                <span>⚙️</span>
                 Manage Routes
             </a>
         </div>
@@ -24,7 +40,7 @@
             {% if routes %}
                 {% for route in routes %}
                 <a href="{{ route.path }}" class="service-card" data-status="{{ route.status }}">
-                    <div class="service-icon">🔗</div>
+                    <div class="service-icon">↗</div>
                     <div class="service-info">
                         <h3>{{ route.name }}</h3>
                         <p class="service-path">{{ route.path }}</p>
@@ -45,7 +61,7 @@
                 {% endfor %}
             {% else %}
                 <div class="empty-state">
-                    <div class="empty-icon">📭</div>
+                    <div class="empty-icon">∅</div>
                     <h3>No services configured yet</h3>
                     <p>Click "Manage Routes" to add your first service</p>
                     <a href="/admin" class="btn btn-primary">Get Started</a>
@@ -63,15 +79,15 @@
                 <span>Who Am I</span>
             </a>
             <a href="/headers" class="quick-link">
-                <span class="link-icon">📋</span>
+                <span class="link-icon">�</span>
                 <span>Request Headers</span>
             </a>
             <a href="/logs" class="quick-link">
-                <span class="link-icon">📝</span>
+                <span class="link-icon">�</span>
                 <span>Application Logs</span>
             </a>
             <a href="/health" class="quick-link">
-                <span class="link-icon">❤️</span>
+                <span class="link-icon">✓</span>
                 <span>Health Check</span>
             </a>
         </div>
