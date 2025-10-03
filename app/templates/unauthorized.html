@@ -1,69 +1,19 @@
 {% extends "base.html" %}
 
-{% block title %}403 - Access Denied{% endblock %}
-
-{% block header_title %}ACCESS DENIED{% endblock %}
-{% block header_subtitle %}Unauthorized Access Attempt{% endblock %}
+{% block title %}Unauthorized - Shark-no-Ninsho-Mon{% endblock %}
 
 {% block content %}
-<div style="text-align: center; padding: 40px;">
-    <div class="error-code">403</div>
-    <div class="error-message">Access Forbidden</div>
-    <p>Your email address is not authorized to access this application.</p>
-    
-    <div class="security-note" style="text-align: left; margin: 30px 0;">
-        <h4>[!] Security Information</h4>
-        <div class="info-item">
-            <span class="info-label">Your Email:</span>
-            <span class="info-value">{{ email }}</span>
-        </div>
-        <div class="info-item">
-            <span class="info-label">Your IP Address:</span>
-            <span class="info-value">{{ real_ip }}</span>
-        </div>
-        <div class="info-item">
-            <span class="info-label">Access Time:</span>
-            <span class="info-value">{{ timestamp }}</span>
-        </div>
-        <div class="info-item">
-            <span class="info-label">Incident ID:</span>
-            <span class="info-value">{{ incident_id }}</span>
-        </div>
-    </div>
-    
-    <div class="security-note">
-        <h4>[!] Access Requirements</h4>
-        <p><strong>Access to this application is restricted.</strong></p>
-        <p>Only users with pre-approved email addresses can access this system. 
-           If you believe you should have access, please contact the system administrator 
-           with your email address and the incident ID shown above.</p>
-        <p><strong>Note:</strong> This access attempt has been logged for security monitoring.</p>
-    </div>
-    
-    <div class="nav-section" style="margin-top: 30px;">
-        <h3>What can you do?</h3>
-        <div class="nav-grid">
-            <button onclick="window.location.reload()" class="nav-item">
-                <span class="icon">[R]</span>
-                <span>Retry Authentication</span>
-            </button>
-            <button onclick="window.history.back()" class="nav-item">
-                <span class="icon">[<]</span>
-                <span>Go Back</span>
-            </button>
-        </div>
+<div class="container">
+    <div class="card error-card">
+        <div class="error-icon">🚫</div>
+        <h1>Access Denied</h1>
+        <p class="error-message">
+            Sorry, <strong>{{ email }}</strong> is not authorized to access this resource.
+        </p>
+        <p class="error-details">
+            Please contact your administrator to request access.
+        </p>
+        <a href="/" class="btn btn-primary">Go to Home</a>
     </div>
 </div>
-{% endblock %}
-
-{% block extra_scripts %}
-<script>
-// Auto-refresh every 10 seconds to check for updated permissions
-setTimeout(() => {
-    window.location.reload();
-}, 10000);
-
-// Add some security logging
-console.log('Access denied - incident logged');
-</script>
 {% endblock %}

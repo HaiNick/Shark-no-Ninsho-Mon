@@ -1,17 +1,27 @@
 {% extends "base.html" %}
 
-{% block title %}404 - Page Not Found{% endblock %}
+{% block title %}404 Not Found - Shark-no-Ninsho-Mon{% endblock %}
 
 {% block content %}
-<div style="text-align: center; padding: 40px;">
-    <div class="error-code">404</div>
-    <div class="error-message">Page Not Found</div>
-    <p>The requested page could not be found on this server.</p>
-    
-    <div class="user-info">
-        <strong>Authenticated as:</strong> {{ email }}
+<div class="container">
+    <div class="card error-card">
+        <div class="error-icon">🦈</div>
+        <h1>404 - Not Found</h1>
+        <p class="error-message">
+            The path <strong>{{ path }}</strong> does not exist.
+        </p>
+        <p class="error-details">
+            This could be because:
+        </p>
+        <ul class="error-list">
+            <li>The route has not been configured yet</li>
+            <li>The path was mistyped</li>
+            <li>The route was deleted</li>
+        </ul>
+        <div class="error-actions">
+            <a href="/" class="btn btn-primary">Go to Dashboard</a>
+            <a href="/admin" class="btn btn-secondary">Manage Routes</a>
+        </div>
     </div>
-    
-    <a href="/" class="back-link">< Back to Home</a>
 </div>
 {% endblock %}

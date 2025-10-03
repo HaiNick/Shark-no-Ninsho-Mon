@@ -1,40 +1,80 @@
 {% extends "base.html" %}
 
+{% block title %}Dashboard - Shark-no-Ninsho-Mon{% endblock %}
+
 {% block content %}
-<div class="info-card">
-    <h3>Authentication Information</h3>
-    <div id="user-info-content">
-        <div class="loading"></div> Loading user information...
+<div class="container">
+    <!-- Welcome Card -->
+    <div class="card welcome-card">
+        <h1>Welcome back, <span class="user-email">{{ email }}</span></h1>
+        <p class="subtitle">You are successfully authenticated and authorized</p>
     </div>
-</div>
 
-<div class="nav-section">
-    <h3>Available Endpoints</h3>
-    <div class="nav-grid">
-        <button class="nav-item" data-action="whoami">
-            <span class="icon">[?]</span>
-            <span>/api/whoami - JSON user info</span>
-        </button>
-        <button class="nav-item" data-action="headers">
-            <span class="icon">[#]</span>
-            <span>/headers - Authentication headers</span>
-        </button>
-        <button class="nav-item" data-action="logs">
-            <span class="icon">[*]</span>
-            <span>/logs - Recent access logs</span>
-        </button>
-        <button class="nav-item" data-action="health">
-            <span class="icon">[+]</span>
-            <span>/health - Health check</span>
-        </button>
+    <!-- Services Section -->
+    <div class="card">
+        <div class="card-header">
+            <h2>Your Available Services</h2>
+            <a href="/admin" class="btn btn-primary">
+                <span>⚙️</span>
+                Manage Routes
+            </a>
+        </div>
+        
+        <div id="services-grid" class="services-grid">
+            {% if routes %}
+                {% for route in routes %}
+                <a href="{{ route.path }}" class="service-card" data-status="{{ route.status }}">
+                    <div class="service-icon">🔗</div>
+                    <div class="service-info">
+                        <h3>{{ route.name }}</h3>
+                        <p class="service-path">{{ route.path }}</p>
+                        <p class="service-target">{{ route.target_ip }}:{{ route.target_port }}</p>
+                    </div>
+                    <div class="service-status status-{{ route.status }}">
+                        {% if route.status == 'online' %}
+                            <span class="status-dot"></span> Online
+                        {% elif route.status == 'slow' %}
+                            <span class="status-dot"></span> Slow
+                        {% elif route.status == 'offline' %}
+                            <span class="status-dot"></span> Offline
+                        {% else %}
+                            <span class="status-dot"></span> Unknown
+                        {% endif %}
+                    </div>
+                </a>
+                {% endfor %}
+            {% else %}
+                <div class="empty-state">
+                    <div class="empty-icon">📭</div>
+                    <h3>No services configured yet</h3>
+                    <p>Click "Manage Routes" to add your first service</p>
+                    <a href="/admin" class="btn btn-primary">Get Started</a>
+                </div>
+            {% endif %}
+        </div>
     </div>
-</div>
 
-<div class="security-note">
-    <h4>[!] Security Notice</h4>
-    <p>This page is protected by oauth2-proxy with Google authentication <strong>and email authorization</strong>. 
-       Only users listed in the emails.txt file can access this application. 
-       All requests are logged for security monitoring, and unauthorized access attempts are blocked.</p>
-    <p><strong>Your access is authorized</strong> - you are successfully authenticated and on the approved user list.</p>
+    <!-- Quick Links -->
+    <div class="card">
+        <h2>Quick Links</h2>
+        <div class="quick-links">
+            <a href="/whoami" class="quick-link">
+                <span class="link-icon">👤</span>
+                <span>Who Am I</span>
+            </a>
+            <a href="/headers" class="quick-link">
+                <span class="link-icon">📋</span>
+                <span>Request Headers</span>
+            </a>
+            <a href="/logs" class="quick-link">
+                <span class="link-icon">📝</span>
+                <span>Application Logs</span>
+            </a>
+            <a href="/health" class="quick-link">
+                <span class="link-icon">❤️</span>
+                <span>Health Check</span>
+            </a>
+        </div>
+    </div>
 </div>
 {% endblock %}

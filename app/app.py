@@ -1,426 +1,405 @@
-# file: app/app.py
-from flask import Flask, request, jsonify, render_template, abort
+"""
+Shark-no-Ninsho-Mon - OAuth2 Authentication Gateway with Reverse Proxy Route Manager
+"""
+from flask import Flask, render_template, request, jsonify, Response
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
 import logging
-import datetime
+from datetime import datetime
 import os
-import functools
+import threading
 import time
 
-app = Flask(__name__)
+from routes_db import RouteManager
+from proxy_handler import ProxyHandler
 
-# Environment configuration
-FLASK_ENV = os.getenv('FLASK_ENV', 'production')
-EMAILS_FILE_PATH = os.getenv('EMAILS_FILE_PATH', '/app/emails.txt')
-LOG_FILE_PATH = os.getenv('LOG_FILE_PATH', '/app/access.log')
-
-# Configure logging with error handling
-try:
-    # Ensure log directory exists
-    log_dir = os.path.dirname(LOG_FILE_PATH)
-    if log_dir and not os.path.exists(log_dir):
-        os.makedirs(log_dir, exist_ok=True)
-    
-    logging.basicConfig(
-        level=logging.INFO,
-        format='%(asctime)s - %(levelname)s - %(message)s',
-        handlers=[
-            logging.StreamHandler(),  # Console output
-            logging.FileHandler(LOG_FILE_PATH)  # File output
-        ]
-    )
-except (PermissionError, OSError) as e:
-    # Fallback to console-only logging if file logging fails
-    logging.basicConfig(
-        level=logging.INFO,
-        format='%(asctime)s - %(levelname)s - %(message)s',
-        handlers=[logging.StreamHandler()]
-    )
-    print(f"WARNING: Could not create log file at {LOG_FILE_PATH}: {e}")
-
+# Configure logging
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+)
 logger = logging.getLogger(__name__)
 
-# Rate limiting configuration
-def get_real_ip_for_limiter():
-    """Get real IP for rate limiter"""
-    return get_real_ip()
+# Initialize Flask app
+app = Flask(__name__)
+app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'dev-secret-key-change-in-production')
 
+# Initialize rate limiter
 limiter = Limiter(
     app=app,
-    key_func=get_real_ip_for_limiter,
+    key_func=get_remote_address,
     default_limits=["200 per day", "50 per hour"],
     storage_uri="memory://"
 )
 
-# Cache for authorized emails with file modification time tracking
-_email_cache = {'emails': set(), 'mtime': 0}
+# Initialize route manager and proxy handler
+route_manager = RouteManager('/app/routes.json')
+proxy_handler = ProxyHandler(route_manager)
 
-def load_authorized_emails():
-    """Load authorized emails from emails.txt file with caching"""
-    global _email_cache
-    
-    # Check multiple possible paths for emails file
-    possible_paths = [
-        EMAILS_FILE_PATH,
-        '/app/emails.txt',
-        '../emails.txt',
-        './emails.txt'
-    ]
-    
-    emails_file_path = None
-    for path in possible_paths:
-        if os.path.exists(path):
-            emails_file_path = path
-            break
-    
-    if not emails_file_path:
-        logger.error(f"Emails file not found in any of these locations: {possible_paths}")
-        return set()
-    
-    try:
-        # Check file modification time for cache invalidation
-        current_mtime = os.path.getmtime(emails_file_path)
-        
-        # Return cached emails if file hasn't changed
-        if _email_cache['mtime'] == current_mtime and _email_cache['emails']:
-            return _email_cache['emails']
-        
-        # Load emails from file
-        authorized_emails = set()
-        with open(emails_file_path, 'r') as f:
-            for line in f:
-                email = line.strip()
-                if email and not email.startswith('#'):  # Skip empty lines and comments
-                    authorized_emails.add(email.lower())  # Store in lowercase for case-insensitive comparison
-        
-        # Update cache
-        _email_cache['emails'] = authorized_emails
-        _email_cache['mtime'] = current_mtime
-        
-        logger.info(f"Loaded {len(authorized_emails)} authorized emails from {emails_file_path}")
-        return authorized_emails
-        
-    except FileNotFoundError:
-        logger.error(f"Emails file not found at {emails_file_path}. All users will be blocked.")
-        return set()
-    except PermissionError:
-        logger.error(f"Permission denied reading {emails_file_path}. All users will be blocked.")
-        return set()
-    except Exception as e:
-        logger.error(f"Error loading emails file: {e}")
-        return set()
+# Load authorized emails
+AUTHORIZED_EMAILS = set()
+emails_file = os.environ.get('EMAILS_FILE', '/app/emails.txt')
+if os.path.exists(emails_file):
+    with open(emails_file, 'r') as f:
+        AUTHORIZED_EMAILS = {line.strip().lower() for line in f if line.strip() and not line.startswith('#')}
+    logger.info(f"Loaded {len(AUTHORIZED_EMAILS)} authorized emails")
+else:
+    logger.warning(f"Emails file not found: {emails_file}")
 
-def is_user_authorized(email):
-    """Check if user email is in the authorized list"""
-    # SECURITY: Block anonymous users in production
-    if email == "anonymous":
-        if FLASK_ENV == 'production':
-            logger.warning("SECURITY BLOCK - Anonymous user blocked in production mode")
-            return False
-        else:
-            logger.warning("DEV MODE - Anonymous user allowed (NOT FOR PRODUCTION)")
-            # In development, still check the email list
-    
-    authorized_emails = load_authorized_emails()
-    
-    # If no emails are configured, block everyone for security
-    if not authorized_emails:
-        logger.critical("SECURITY ALERT - No authorized emails configured! Blocking all access.")
-        return False
-    
-    is_authorized = email.lower() in authorized_emails
-    
-    if is_authorized:
-        logger.info(f"AUTHORIZATION SUCCESS - User '{email}' is authorized to access the application")
-    else:
-        logger.warning(f"AUTHORIZATION FAILED - User '{email}' is not in authorized list")
-    
-    return is_authorized
 
-def check_authorization():
-    """Check if current user is authorized to access the application"""
-    email = get_email()
-    
-    if not is_user_authorized(email):
-        logger.warning(f"SECURITY BLOCK - Unauthorized access attempt by: {email} | IP: {get_real_ip()} | Path: {request.path}")
-        return False
-    
-    return True
+def get_user_email():
+    """Get user email from OAuth2 proxy headers"""
+    return request.headers.get('X-Forwarded-Email', '').lower()
 
-def get_email():
-    """Get user email from various possible headers"""
-    return (request.headers.get("X-Forwarded-Email")
-            or request.headers.get("X-Auth-Request-Email")
-            or request.headers.get("X-Forwarded-User")
-            or "anonymous")
 
-def get_real_ip():
-    """Get the real IP address of the user from various possible headers"""
-    # Try multiple headers that might contain the real IP
-    possible_ip_headers = [
-        'X-Real-IP',
-        'X-Forwarded-For',
-        'CF-Connecting-IP',  # Cloudflare
-        'X-Client-IP',
-        'X-Cluster-Client-IP',
-        'Forwarded'
-    ]
-    
-    for header in possible_ip_headers:
-        ip = request.headers.get(header)
-        if ip:
-            # X-Forwarded-For can be a comma-separated list, take the first one
-            if ',' in ip:
-                ip = ip.split(',')[0].strip()
-            # Only log in debug mode to reduce log noise
-            if FLASK_ENV == 'development':
-                logger.debug(f"Found IP in header {header}: {ip}")
-            return ip
-    
-    # Fallback to Flask's remote_addr
-    fallback_ip = request.remote_addr or '127.0.0.1'
-    if FLASK_ENV == 'development':
-        logger.debug(f"Using fallback IP from request.remote_addr: {fallback_ip}")
-    return fallback_ip
+def is_authorized():
+    """Check if user is authorized"""
+    email = get_user_email()
+    return email in AUTHORIZED_EMAILS
 
-def log_access():
-    """Log access details for monitoring and debugging"""
-    email = get_email()
-    real_ip = get_real_ip()
-    timestamp = datetime.datetime.now().isoformat()
-    
-    # Get all relevant headers
-    auth_headers = {
-        'X-Forwarded-Email': request.headers.get('X-Forwarded-Email'),
-        'X-Forwarded-User': request.headers.get('X-Forwarded-User'),
-        'X-Auth-Request-Email': request.headers.get('X-Auth-Request-Email'),
-        'X-Forwarded-Proto': request.headers.get('X-Forwarded-Proto'),
-        'X-Forwarded-Host': request.headers.get('X-Forwarded-Host'),
-        'X-Forwarded-Uri': request.headers.get('X-Forwarded-Uri'),
-        'X-Real-IP': request.headers.get('X-Real-IP'),
-        'X-Forwarded-For': request.headers.get('X-Forwarded-For'),
-        'User-Agent': request.headers.get('User-Agent'),
-    }
-    
-    # Log the access
-    logger.info(f"ACCESS - Email: {email} | IP: {real_ip} | Path: {request.path} | Method: {request.method} | Host: {request.headers.get('X-Forwarded-Host', 'unknown')}")
-    
-    # Log detailed headers for debugging (only in debug mode)
-    if app.debug or os.getenv('FLASK_ENV') == 'development':
-        logger.debug(f"All auth headers: {auth_headers}")
 
-@app.before_request
-def before_request():
-    """Check authorization and log every request"""
-    # Skip authorization check for certain endpoints
-    skip_auth_paths = ['/favicon.ico', '/static/', '/unauthorized']
-    
-    if not any(request.path.startswith(path) for path in skip_auth_paths):
-        if not check_authorization():
-            # Log the unauthorized attempt
-            log_access()
-            # Generate incident ID for tracking
-            import uuid
-            incident_id = str(uuid.uuid4())[:8]
-            timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S UTC")
-            
-            # Redirect to unauthorized page
-            return render_template('unauthorized.html', 
-                                 email=get_email(), 
-                                 real_ip=get_real_ip(),
-                                 timestamp=timestamp,
-                                 incident_id=incident_id), 403
-    
-    # Log the request
-    log_access()
+# ============================================================================
+# MAIN ROUTES
+# ============================================================================
 
-@app.route("/")
+@app.route('/')
 def index():
-    return render_template('index.html')
+    """Main dashboard"""
+    email = get_user_email()
+    
+    if not is_authorized():
+        return render_template('unauthorized.html', email=email), 403
+    
+    # Get enabled routes to display on dashboard
+    routes = route_manager.get_all_routes(enabled_only=True)
+    
+    logger.info(f"ACCESS - User: {email} | Path: / | IP: {request.remote_addr}")
+    
+    return render_template('index.html', email=email, routes=routes)
 
-@app.route("/api/whoami")
-def whoami():
-    email = get_email()
-    real_ip = get_real_ip()
-    
-    user_info = {
-        "email": email,
-        "ip_address": real_ip,
-        "timestamp": datetime.datetime.now().isoformat(),
-        "authenticated": email != "anonymous",
-        "host": request.headers.get('X-Forwarded-Host'),
-        "protocol": request.headers.get('X-Forwarded-Proto'),
-        "user_agent": request.headers.get('User-Agent'),
-        "request_path": request.path,
-        "method": request.method
-    }
-    
-    return jsonify(user_info)
 
-@app.route("/headers")
-def headers():
-    """Show all authentication and forwarding headers"""
-    auth_headers_list = [
-        "X-Forwarded-Email", "X-Forwarded-User", "X-Auth-Request-Email",
-        "X-Forwarded-Proto", "X-Forwarded-Host", "X-Forwarded-Uri", 
-        "X-Real-IP", "X-Forwarded-For", "CF-Connecting-IP",
-        "X-Client-IP", "User-Agent", "Host"
-    ]
+@app.route('/admin')
+def admin():
+    """Route management admin page"""
+    email = get_user_email()
     
-    email = get_email()
-    real_ip = get_real_ip()
+    if not is_authorized():
+        return render_template('unauthorized.html', email=email), 403
     
-    auth_headers = [(header, request.headers.get(header)) for header in auth_headers_list]
-    all_headers = [(header, value) for header, value in request.headers]
+    logger.info(f"ACCESS - User: {email} | Path: /admin | IP: {request.remote_addr}")
     
-    return render_template('headers.html', 
-                         email=email, 
-                         real_ip=real_ip,
-                         auth_headers=auth_headers,
-                         all_headers=all_headers)
+    return render_template('admin.html', email=email)
 
-@app.route("/api/headers")
-def api_headers():
-    """API endpoint for headers information"""
-    auth_headers_list = [
-        "X-Forwarded-Email", "X-Forwarded-User", "X-Auth-Request-Email",
-        "X-Forwarded-Proto", "X-Forwarded-Host", "X-Forwarded-Uri", 
-        "X-Real-IP", "X-Forwarded-For", "CF-Connecting-IP",
-        "X-Client-IP", "User-Agent", "Host"
-    ]
-    
-    email = get_email()
-    real_ip = get_real_ip()
-    
-    headers_data = {
-        "detected_email": email,
-        "detected_ip": real_ip,
-        "auth_headers": {header: request.headers.get(header) for header in auth_headers_list},
-        "all_headers": dict(request.headers),
-        "timestamp": datetime.datetime.now().isoformat()
-    }
-    
-    return jsonify(headers_data)
 
-@app.route("/logs")
-@limiter.limit("10 per minute")
-def show_logs():
-    """Show recent access logs"""
-    try:
-        with open(LOG_FILE_PATH, 'r') as f:
-            logs = f.readlines()
-            # Show last 50 lines
-            recent_logs = logs[-50:] if len(logs) > 50 else logs
-            
-        log_content = ''.join(recent_logs)
-        log_count = len(recent_logs)
-        
-        return render_template('logs.html', logs=log_content, log_count=log_count)
-        
-    except FileNotFoundError:
-        return render_template('logs.html', 
-                             logs='No log file found. Logs will appear here after some requests are made to the application.',
-                             log_count=0)
-    except PermissionError:
-        return render_template('logs.html', 
-                             logs='Permission denied reading log file.',
-                             log_count=0)
-
-@app.route("/api/logs")
-@limiter.limit("10 per minute")
-def api_logs():
-    """API endpoint for logs"""
-    try:
-        with open(LOG_FILE_PATH, 'r') as f:
-            logs = f.readlines()
-            # Show last 50 lines
-            recent_logs = logs[-50:] if len(logs) > 50 else logs
-            
-        log_content = ''.join(recent_logs)
-        
-        return jsonify({
-            "logs": log_content,
-            "log_count": len(recent_logs),
-            "timestamp": datetime.datetime.now().isoformat()
-        })
-        
-    except FileNotFoundError:
-        return jsonify({
-            "logs": "No log file found",
-            "log_count": 0,
-            "timestamp": datetime.datetime.now().isoformat(),
-            "error": "Log file not found"
-        }), 503
-    except PermissionError:
-        return jsonify({
-            "logs": "Permission denied",
-            "log_count": 0,
-            "timestamp": datetime.datetime.now().isoformat(),
-            "error": "Permission denied reading log file"
-        }), 403
-
-@app.route("/health")
+@app.route('/health')
 @limiter.exempt
 def health():
-    """Health check endpoint for Docker and monitoring systems"""
-    # Basic health check - doesn't require authentication
-    health_info = {
-        "status": "healthy",
-        "timestamp": datetime.datetime.now().isoformat(),
-        "service": "shark-no-ninsho-mon",
-        "version": "2.0.0",
-        "environment": FLASK_ENV
-    }
+    """Health check endpoint"""
+    return jsonify({
+        'status': 'healthy',
+        'timestamp': datetime.now().isoformat(),
+        'routes_count': len(route_manager.get_all_routes())
+    })
+
+
+@app.route('/whoami')
+def whoami():
+    """Return user information"""
+    email = get_user_email()
     
-    # Check if emails file is accessible
+    return jsonify({
+        'email': email,
+        'authorized': is_authorized(),
+        'ip': request.remote_addr,
+        'user_agent': request.headers.get('User-Agent', '')
+    })
+
+
+@app.route('/headers')
+def headers():
+    """Display all request headers"""
+    email = get_user_email()
+    
+    if not is_authorized():
+        return render_template('unauthorized.html', email=email), 403
+    
+    headers_dict = dict(request.headers)
+    
+    logger.info(f"ACCESS - User: {email} | Path: /headers | IP: {request.remote_addr}")
+    
+    return render_template('headers.html', email=email, headers=headers_dict)
+
+
+@app.route('/logs')
+def logs():
+    """Display application logs"""
+    email = get_user_email()
+    
+    if not is_authorized():
+        return render_template('unauthorized.html', email=email), 403
+    
+    logger.info(f"ACCESS - User: {email} | Path: /logs | IP: {request.remote_addr}")
+    
+    return render_template('logs.html', email=email)
+
+
+# ============================================================================
+# ROUTE MANAGEMENT API
+# ============================================================================
+
+@app.route('/api/routes', methods=['GET'])
+@limiter.limit("100 per hour")
+def api_get_routes():
+    """Get all routes"""
+    email = get_user_email()
+    
+    if not is_authorized():
+        return jsonify({'error': 'Unauthorized'}), 403
+    
+    routes = route_manager.get_all_routes()
+    return jsonify(routes)
+
+
+@app.route('/api/routes', methods=['POST'])
+@limiter.limit("50 per hour")
+def api_create_route():
+    """Create a new route"""
+    email = get_user_email()
+    
+    if not is_authorized():
+        return jsonify({'error': 'Unauthorized'}), 403
+    
+    data = request.json
+    
     try:
-        authorized_emails = load_authorized_emails()
-        health_info["authorized_emails_count"] = len(authorized_emails)
-        health_info["emails_file_status"] = "ok"
-    except Exception as e:
-        health_info["emails_file_status"] = f"error: {str(e)}"
-        health_info["status"] = "degraded"
+        route = route_manager.add_route(
+            path=data.get('path'),
+            name=data.get('name'),
+            target_ip=data.get('target_ip'),
+            target_port=int(data.get('target_port')),
+            protocol=data.get('protocol', 'http'),
+            enabled=data.get('enabled', True),
+            health_check=data.get('health_check', True),
+            timeout=int(data.get('timeout', 30)),
+            preserve_host=data.get('preserve_host', False),
+            websocket=data.get('websocket', False)
+        )
+        
+        logger.info(f"ROUTE_ADD - User: {email} | Path: {route['path']} | Target: {route['target_ip']}:{route['target_port']}")
+        
+        return jsonify(route), 201
     
-    # Check if log file is writable
+    except ValueError as e:
+        logger.error(f"ROUTE_ADD_ERROR - User: {email} | Error: {str(e)}")
+        return jsonify({'error': str(e)}), 400
+    
+    except Exception as e:
+        logger.error(f"ROUTE_ADD_ERROR - User: {email} | Error: {str(e)}")
+        return jsonify({'error': 'Internal server error'}), 500
+
+
+@app.route('/api/routes/<route_id>', methods=['GET'])
+@limiter.limit("100 per hour")
+def api_get_route(route_id):
+    """Get a single route"""
+    email = get_user_email()
+    
+    if not is_authorized():
+        return jsonify({'error': 'Unauthorized'}), 403
+    
+    route = route_manager.get_route_by_id(route_id)
+    
+    if not route:
+        return jsonify({'error': 'Route not found'}), 404
+    
+    return jsonify(route)
+
+
+@app.route('/api/routes/<route_id>', methods=['PUT'])
+@limiter.limit("50 per hour")
+def api_update_route(route_id):
+    """Update a route"""
+    email = get_user_email()
+    
+    if not is_authorized():
+        return jsonify({'error': 'Unauthorized'}), 403
+    
+    data = request.json
+    
     try:
-        with open(LOG_FILE_PATH, 'a') as f:
-            pass
-        health_info["log_file_status"] = "ok"
+        # Validate data if provided
+        if 'target_ip' in data:
+            route_manager.validate_ip(data['target_ip'])
+        
+        if 'target_port' in data:
+            route_manager.validate_port(int(data['target_port']))
+        
+        if 'path' in data:
+            data['path'] = route_manager.validate_path(data['path'])
+        
+        success = route_manager.update_route(route_id, data)
+        
+        if success:
+            logger.info(f"ROUTE_UPDATE - User: {email} | Route: {route_id} | Changes: {list(data.keys())}")
+            return jsonify({'success': True, 'route': route_manager.get_route_by_id(route_id)})
+        else:
+            return jsonify({'error': 'Route not found'}), 404
+    
+    except ValueError as e:
+        return jsonify({'error': str(e)}), 400
+    
     except Exception as e:
-        health_info["log_file_status"] = f"error: {str(e)}"
-        health_info["status"] = "degraded"
+        logger.error(f"ROUTE_UPDATE_ERROR - User: {email} | Route: {route_id} | Error: {str(e)}")
+        return jsonify({'error': 'Internal server error'}), 500
+
+
+@app.route('/api/routes/<route_id>', methods=['DELETE'])
+@limiter.limit("50 per hour")
+def api_delete_route(route_id):
+    """Delete a route"""
+    email = get_user_email()
     
-    status_code = 200 if health_info["status"] == "healthy" else 503
-    return jsonify(health_info), status_code
-
-@app.route("/health-page")
-def health_page():
-    """Health check page"""
-    return render_template('health_page.html')
-
-@app.route("/unauthorized")
-def unauthorized_page():
-    """Display unauthorized access page"""
-    import uuid
-    incident_id = str(uuid.uuid4())[:8]
-    timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S UTC")
+    if not is_authorized():
+        return jsonify({'error': 'Unauthorized'}), 403
     
-    return render_template('unauthorized.html', 
-                         email=get_email(), 
-                         real_ip=get_real_ip(),
-                         timestamp=timestamp,
-                         incident_id=incident_id), 403
+    success = route_manager.delete_route(route_id)
+    
+    if success:
+        logger.info(f"ROUTE_DELETE - User: {email} | Route: {route_id}")
+        return jsonify({'success': True})
+    else:
+        return jsonify({'error': 'Route not found'}), 404
 
-@app.route("/favicon.ico")
-def favicon():
-    """Simple favicon endpoint to prevent 404s"""
-    return "", 204
+
+@app.route('/api/routes/<route_id>/test', methods=['POST'])
+@limiter.limit("30 per hour")
+def api_test_route(route_id):
+    """Test route connectivity"""
+    email = get_user_email()
+    
+    if not is_authorized():
+        return jsonify({'error': 'Unauthorized'}), 403
+    
+    result = proxy_handler.test_connection(route_id)
+    
+    logger.info(f"ROUTE_TEST - User: {email} | Route: {route_id} | Result: {result.get('status', 'error')}")
+    
+    return jsonify(result)
+
+
+@app.route('/api/routes/<route_id>/toggle', methods=['POST'])
+@limiter.limit("50 per hour")
+def api_toggle_route(route_id):
+    """Toggle route enabled status"""
+    email = get_user_email()
+    
+    if not is_authorized():
+        return jsonify({'error': 'Unauthorized'}), 403
+    
+    route = route_manager.get_route_by_id(route_id)
+    
+    if not route:
+        return jsonify({'error': 'Route not found'}), 404
+    
+    new_enabled = not route.get('enabled', True)
+    route_manager.update_route(route_id, {'enabled': new_enabled})
+    
+    logger.info(f"ROUTE_TOGGLE - User: {email} | Route: {route_id} | Enabled: {new_enabled}")
+    
+    return jsonify({'success': True, 'enabled': new_enabled})
+
+
+# ============================================================================
+# DYNAMIC PROXY HANDLER (Catch-all)
+# ============================================================================
+
+@app.route('/<path:full_path>', methods=['GET', 'POST', 'PUT', 'DELETE', 'PATCH'])
+def dynamic_proxy(full_path):
+    """
+    Dynamic proxy handler - catches all unmatched routes
+    This should be the last route defined
+    """
+    email = get_user_email()
+    
+    if not is_authorized():
+        return render_template('unauthorized.html', email=email), 403
+    
+    # Extract route path (first segment)
+    path_parts = full_path.split('/', 1)
+    route_path = '/' + path_parts[0]
+    sub_path = '/' + path_parts[1] if len(path_parts) > 1 else ''
+    
+    # Check if route exists
+    route = route_manager.get_route_by_path(route_path)
+    
+    if not route:
+        logger.warning(f"404 - User: {email} | Path: /{full_path} | IP: {request.remote_addr}")
+        return render_template('404.html', path=f'/{full_path}'), 404
+    
+    # Proxy the request
+    return proxy_handler.proxy_request(route_path, sub_path)
+
+
+# ============================================================================
+# ERROR HANDLERS
+# ============================================================================
 
 @app.errorhandler(404)
-def not_found(error):
-    email = get_email()
-    return render_template('404.html', email=email), 404
+def not_found(e):
+    """Handle 404 errors"""
+    return render_template('404.html', path=request.path), 404
 
-if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=8000, debug=False)
+
+@app.errorhandler(403)
+def forbidden(e):
+    """Handle 403 errors"""
+    email = get_user_email()
+    return render_template('unauthorized.html', email=email), 403
+
+
+@app.errorhandler(500)
+def internal_error(e):
+    """Handle 500 errors"""
+    logger.error(f"500 ERROR - Path: {request.path} | Error: {str(e)}")
+    return "Internal Server Error", 500
+
+
+# ============================================================================
+# BACKGROUND HEALTH CHECK
+# ============================================================================
+
+def health_check_worker():
+    """Background worker to check route health"""
+    while True:
+        try:
+            time.sleep(300)  # Check every 5 minutes
+            
+            routes = route_manager.get_all_routes()
+            for route in routes:
+                if route.get('health_check', False) and route.get('enabled', True):
+                    proxy_handler.test_connection(route['id'])
+            
+            logger.info(f"HEALTH_CHECK - Checked {len(routes)} routes")
+        
+        except Exception as e:
+            logger.error(f"HEALTH_CHECK_ERROR - {str(e)}")
+
+
+# Start health check worker
+health_thread = threading.Thread(target=health_check_worker, daemon=True)
+health_thread.start()
+
+
+# ============================================================================
+# MAIN
+# ============================================================================
+
+if __name__ == '__main__':
+    port = int(os.environ.get('PORT', 8000))
+    debug = os.environ.get('DEBUG', 'False').lower() == 'true'
+    
+    logger.info(f"Starting Shark-no-Ninsho-Mon on port {port}")
+    logger.info(f"Authorized emails: {len(AUTHORIZED_EMAILS)}")
+    logger.info(f"Existing routes: {len(route_manager.get_all_routes())}")
+    
+    app.run(host='0.0.0.0', port=port, debug=debug)

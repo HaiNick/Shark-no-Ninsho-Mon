@@ -1,8 +1,14 @@
-# Flask web framework
-flask==3.0.3
+# Core Flask dependencies
+Flask>=3.0.0
+Werkzeug>=3.0.0
 
-# WSGI HTTP Server for production
-gunicorn==22.0.0
+# Rate limiting and security
+Flask-Limiter>=3.5.0
 
-# Rate limiting for security
-Flask-Limiter==3.5.0
+# Route management
+tinydb>=4.8.0           # Database for route storage
+validators>=0.22.0      # IP and URL validation
+requests>=2.31.0        # For proxy requests
+
+# Utilities
+python-dateutil>=2.8.2

@@ -1,236 +1,110 @@
-// Shark Authentication Test - JavaScript Module
+/**
+ * Main JavaScript for Shark-no-Ninsho-Mon
+ */
 
-class SharkAPI {
-    constructor() {
-        this.baseURL = window.location.origin;
-    }
-
-    // Fetch user information
-    async getUserInfo() {
-        try {
-            const response = await axios.get(`${this.baseURL}/api/whoami`);
-            return response.data;
-        } catch (error) {
-            console.error('Error fetching user info:', error);
-            throw error;
-        }
-    }
-
-    // Fetch health status
-    async getHealthStatus() {
-        try {
-            const response = await axios.get(`${this.baseURL}/health`);
-            return response.data;
-        } catch (error) {
-            console.error('Error fetching health status:', error);
-            throw error;
-        }
-    }
-
-    // Fetch headers information
-    async getHeaders() {
-        try {
-            const response = await axios.get(`${this.baseURL}/api/headers`);
-            return response.data;
-        } catch (error) {
-            console.error('Error fetching headers:', error);
-            throw error;
-        }
-    }
-
-    // Fetch logs
-    async getLogs() {
-        try {
-            const response = await axios.get(`${this.baseURL}/api/logs`);
-            return response.data;
-        } catch (error) {
-            console.error('Error fetching logs:', error);
-            throw error;
-        }
-    }
+// Theme Management
+function initTheme() {
+    const theme = localStorage.getItem('theme') || 'light';
+    document.documentElement.setAttribute('data-theme', theme);
+    updateThemeIcon(theme);
 }
 
-// Initialize API instance
-const sharkAPI = new SharkAPI();
-
-// Utility functions
-function showLoading(elementId) {
-    const element = document.getElementById(elementId);
-    if (element) {
-        element.innerHTML = '<div class="loading"></div> Loading...';
-    }
-}
-
-function formatTimestamp(timestamp) {
-    return new Date(timestamp).toLocaleString();
-}
-
-function updateUserInfo() {
-    showLoading('user-info-content');
+function toggleTheme() {
+    const currentTheme = document.documentElement.getAttribute('data-theme');
+    const newTheme = currentTheme === 'light' ? 'dark' : 'light';
     
-    sharkAPI.getUserInfo()
-        .then(data => {
-            const content = `
-                <div class="info-item">
-                    <span class="info-label">Authenticated as:</span>
-                    <span class="info-value">${data.email}</span>
-                </div>
-                <div class="info-item">
-                    <span class="info-label">Your IP Address:</span>
-                    <span class="info-value">${data.ip_address}</span>
-                </div>
-                <div class="info-item">
-                    <span class="info-label">Access Time:</span>
-                    <span class="info-value">${formatTimestamp(data.timestamp)}</span>
-                </div>
-                <div class="info-item">
-                    <span class="info-label">Host:</span>
-                    <span class="info-value">${data.host || 'localhost'}</span>
-                </div>
-                <div class="info-item">
-                    <span class="info-label">Authenticated:</span>
-                    <span class="info-value">${data.authenticated ? 'Yes' : 'No'}</span>
-                </div>
-            `;
-            document.getElementById('user-info-content').innerHTML = content;
-        })
-        .catch(error => {
-            document.getElementById('user-info-content').innerHTML = 
-                '<div style="color: #dc3545;">Error loading user information</div>';
-        });
+    document.documentElement.setAttribute('data-theme', newTheme);
+    localStorage.setItem('theme', newTheme);
+    updateThemeIcon(newTheme);
 }
 
-function updateHealthStatus() {
-    const statusElement = document.getElementById('health-status');
-    if (!statusElement) return;
+function updateThemeIcon(theme) {
+    const themeIcon = document.querySelector('.theme-icon');
+    if (themeIcon) {
+        themeIcon.textContent = theme === 'light' ? '🌙' : '☀️';
+    }
+}
 
-    showLoading('health-status');
+// Particle Animation
+function createParticles() {
+    const particlesContainer = document.getElementById('particles');
+    if (!particlesContainer) return;
     
-    sharkAPI.getHealthStatus()
-        .then(data => {
-            statusElement.innerHTML = `
-                <div class="info-card">
-                    <h3>System Health</h3>
-                    <div class="info-item">
-                        <span class="info-label">Status:</span>
-                        <span class="info-value" style="color: #28a745;">${data.status}</span>
-                    </div>
-                    <div class="info-item">
-                        <span class="info-label">Service:</span>
-                        <span class="info-value">${data.service}</span>
-                    </div>
-                    <div class="info-item">
-                        <span class="info-label">Version:</span>
-                        <span class="info-value">${data.version}</span>
-                    </div>
-                    <div class="info-item">
-                        <span class="info-label">Last Check:</span>
-                        <span class="info-value">${formatTimestamp(data.timestamp)}</span>
-                    </div>
-                </div>
-            `;
-        })
-        .catch(error => {
-            statusElement.innerHTML = 
-                '<div style="color: #dc3545;">Error loading health status</div>';
-        });
-}
-
-// Navigation functions
-function navigateToHeaders() {
-    window.location.href = '/headers';
-}
-
-function navigateToLogs() {
-    window.location.href = '/logs';
-}
-
-function navigateToHealth() {
-    window.location.href = '/health-page';
-}
-
-function navigateToWhoami() {
-    window.location.href = '/api/whoami';
-}
-
-function refreshLogs() {
-    const logsContainer = document.getElementById('logs-container');
-    if (!logsContainer) return;
-
-    showLoading('logs-container');
+    const particleCount = 50;
     
-    sharkAPI.getLogs()
-        .then(data => {
-            logsContainer.innerHTML = data.logs || 'No logs available';
-            // Update log count if element exists
-            const logInfo = document.querySelector('.log-info p');
-            if (logInfo && data.log_count !== undefined) {
-                logInfo.innerHTML = `<strong>Log Entries:</strong> Showing last ${data.log_count} entries`;
-            }
-        })
-        .catch(error => {
-            logsContainer.innerHTML = 'Error loading logs';
-            console.error('Error refreshing logs:', error);
-        });
-}
-
-// Auto-refresh functionality
-function startAutoRefresh(intervalSeconds = 30) {
-    setInterval(() => {
-        if (document.getElementById('user-info-content')) {
-            updateUserInfo();
-        }
-        if (document.getElementById('health-status')) {
-            updateHealthStatus();
-        }
-        if (document.getElementById('logs-container')) {
-            refreshLogs();
-        }
-    }, intervalSeconds * 1000);
+    for (let i = 0; i < particleCount; i++) {
+        const particle = document.createElement('div');
+        particle.className = 'particle';
+        particle.style.left = Math.random() * 100 + '%';
+        particle.style.animationDelay = Math.random() * 20 + 's';
+        particle.style.animationDuration = (15 + Math.random() * 10) + 's';
+        particlesContainer.appendChild(particle);
+    }
 }
 
 // Initialize on page load
 document.addEventListener('DOMContentLoaded', function() {
-    // Update user info if element exists
-    if (document.getElementById('user-info-content')) {
-        updateUserInfo();
+    initTheme();
+    createParticles();
+    
+    // Add theme toggle event listener
+    const themeToggle = document.getElementById('theme-toggle');
+    if (themeToggle) {
+        themeToggle.addEventListener('click', toggleTheme);
     }
     
-    // Update health status if element exists
-    if (document.getElementById('health-status')) {
-        updateHealthStatus();
-    }
-    
-    // Add click handlers for navigation buttons
-    const navButtons = document.querySelectorAll('.nav-item[data-action]');
-    navButtons.forEach(button => {
-        button.addEventListener('click', function() {
-            const action = this.getAttribute('data-action');
-            switch(action) {
-                case 'whoami':
-                    navigateToWhoami();
-                    break;
-                case 'headers':
-                    navigateToHeaders();
-                    break;
-                case 'logs':
-                    navigateToLogs();
-                    break;
-                case 'health':
-                    navigateToHealth();
-                    break;
+    // Add smooth scroll behavior
+    document.querySelectorAll('a[href^="#"]').forEach(anchor => {
+        anchor.addEventListener('click', function (e) {
+            e.preventDefault();
+            const target = document.querySelector(this.getAttribute('href'));
+            if (target) {
+                target.scrollIntoView({
+                    behavior: 'smooth',
+                    block: 'start'
+                });
             }
         });
     });
-    
-    // Start auto-refresh for dynamic pages
-    if (window.location.pathname === '/' || 
-        window.location.pathname === '/logs' || 
-        window.location.pathname === '/health-page') {
-        startAutoRefresh(30);
-    }
 });
 
-// Export for use in other scripts
-window.SharkAPI = SharkAPI;
-window.sharkAPI = sharkAPI;
+// Utility Functions
+function showNotification(message, type = 'info') {
+    // Create notification element
+    const notification = document.createElement('div');
+    notification.className = `notification ${type}`;
+    notification.textContent = message;
+    notification.style.cssText = `
+        position: fixed;
+        top: 2rem;
+        right: 2rem;
+        padding: 1rem 1.5rem;
+        background: var(--bg-secondary);
+        border-radius: 8px;
+        box-shadow: var(--shadow-xl);
+        z-index: 2000;
+        animation: slideIn 0.3s ease;
+    `;
+    
+    if (type === 'success') {
+        notification.style.borderLeft = '4px solid var(--status-online)';
+    } else if (type === 'error') {
+        notification.style.borderLeft = '4px solid var(--status-offline)';
+    } else {
+        notification.style.borderLeft = '4px solid #667eea';
+    }
+    
+    document.body.appendChild(notification);
+    
+    // Remove after 3 seconds
+    setTimeout(() => {
+        notification.style.animation = 'fadeOut 0.3s ease';
+        setTimeout(() => {
+            document.body.removeChild(notification);
+        }, 300);
+    }, 3000);
+}
+
+// Export functions for use in other scripts
+window.showNotification = showNotification;
+window.toggleTheme = toggleTheme;

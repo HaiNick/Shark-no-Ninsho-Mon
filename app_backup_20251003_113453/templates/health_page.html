@@ -1,0 +1,33 @@
+{% extends "base.html" %}
+
+{% block title %}Health Check - Shark Test{% endblock %}
+
+{% block header_title %}SYSTEM HEALTH CHECK{% endblock %}
+{% block header_subtitle %}Service Status and Monitoring{% endblock %}
+
+{% block content %}
+<div id="health-status">
+    <div class="loading"></div> Loading health information...
+</div>
+
+<div class="nav-section">
+    <h3>Health Endpoints</h3>
+    <div class="nav-grid">
+        <a href="/health" class="nav-item">
+            <span class="icon">[+]</span>
+            <span>/health - JSON Health Status</span>
+        </a>
+        <a href="/api/whoami" class="nav-item">
+            <span class="icon">[?]</span>
+            <span>/api/whoami - User Status</span>
+        </a>
+    </div>
+</div>
+
+<div class="security-note">
+    <h4>Health Information</h4>
+    <p>This page shows the current health status of the Shark authentication service. Status information is updated automatically.</p>
+</div>
+
+<a href="/" class="back-link">< Back to Home</a>
+{% endblock %}
