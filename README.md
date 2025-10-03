@@ -39,14 +39,23 @@ A **production-ready**, **zero-configuration** solution for exposing self-hosted
 
 ## Features
 
-- [SECURE] **Enterprise Google OAuth2 Authentication** - Secure user verification
-- [GLOBAL] **Public Internet Access** - Via Tailscale Funnel (no port forwarding)
-- [SHIELD] **Zero Trust Security** - Email-based authorization control
-- [DOCKER] **Containerized Deployment** - Docker Compose for easy management
-- [THEME] **Beautiful Setup Experience** - Interactive scripts with Dracula theme
-- [LIGHTNING] **One-Command Deployment** - Automated setup for Linux and Windows
-- [MOBILE] **Cross-Platform Support** - Works on Linux, macOS, and Windows
-- [REFRESH] **Auto-Recovery** - Intelligent error handling and failsafes
+### Core Security & Access
+- **Enterprise Google OAuth2 Authentication** - Secure user verification
+- **Public Internet Access** - Via Tailscale Funnel (no port forwarding)
+- **Zero Trust Security** - Email-based authorization control
+- **Dynamic Route Manager** - Web UI for managing reverse proxy routes
+
+### Setup & Configuration
+- **Beautiful Web Setup Wizard** - Modern gradient UI with real-time validation
+- **One-Command Deployment** - `python setup-wizard.py` and you're done
+- **Auto-Generated Secrets** - Cryptographically secure with one click
+- **Intelligent Configuration** - Load, edit, and save `.env` files easily
+
+### Developer Experience
+- **Containerized Deployment** - Docker Compose for easy management
+- **Development Mode** - Optional DEV_MODE to bypass OAuth2 locally
+- **Cross-Platform Support** - Works on Linux, macOS, and Windows
+- **Docker Controls** - Start/stop containers from web UI
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
 
@@ -54,69 +63,63 @@ A **production-ready**, **zero-configuration** solution for exposing self-hosted
 
 ## Quick Start
 
-### Automated Setup (Recommended)
+### Web-Based Setup Wizard (Recommended)
 
-**Linux/macOS:**
+The easiest way to configure Shark Route Manager is using our **beautiful web interface**:
+
+**All Platforms (Linux/macOS/Windows):**
 
 ```bash
-# Clone and run
+# 1. Clone the repository
 git clone https://github.com/HaiNick/Shark-no-Ninsho-Mon
 cd Shark-no-Ninsho-Mon
-chmod +x setup.sh
-./setup.sh
+
+# 2. Install Flask
+pip install flask
+
+# 3. Run setup wizard (with sudo/admin recommended)
+python setup-wizard.py
+
+# 4. Open browser to: http://localhost:8080
 ```
 
-**Windows:**
+**What the Setup Wizard Provides:**
 
-```powershell
-# Clone and run
-git clone https://github.com/HaiNick/Shark-no-Ninsho-Mon
-cd Shark-no-Ninsho-Mon
-.\setup.ps1
-```
+**Comprehensive System Checks**
+- Admin/sudo privileges detection
+- Docker installation & daemon status
+- Docker Compose availability
+- Tailscale installation & running status
+- Python version compatibility
 
-The interactive setup will guide you through:
+**Web Interface Features**
+- Beautiful modern gradient UI
+- Real-time form validation
+- Auto-generated secure secrets (one-click)
+- Load existing configuration
+- Helpful error messages
 
-- [CHECK] **Prerequisites verification** (Docker, Tailscale, etc.)
-- [KEY] **Google OAuth2 credential configuration**
-- [HOME] **Tailscale hostname setup**
-- [MAIL] **Authorized user email management**
-- [ROCKET] **Automatic container deployment**
-- [GLOBE] **Tailscale Funnel activation**
+**Configuration Management**
+- Google OAuth2 Client credentials
+- Tailscale Funnel hostname
+- Development mode toggle (bypass OAuth2 for testing)
+- Creates `.env` file automatically
+
+**Docker Integration**
+- Start containers directly from web UI
+- Stop containers with one click
+- Real-time status feedback
+
+**Benefits:**
+- **Cross-platform** - Single Python file works everywhere
+- **Beautiful UI** - No more terminal prompts
+- **Validated Input** - Real-time validation with helpful hints
+- **Secure** - Auto-generates cryptographically secure secrets
+- **Fast** - Complete setup in minutes
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
 
-### Setup Experience
-
-<details>
-<summary>Click to see the Setup process</summary>
-
-```
-    _____ __               __
-   / ___// /_  ____ ______/ /__
-   \__ \/ __ \/ __ \/ ___/ //_/
-  ___/ / / / / /_/ / /  / ,<
- /____/_/ /_/\__,_/_/  /_/|_|
-
- Shark-no-Ninsho-Mon Setup Script
- =================================
-
-STEP 1: Prerequisites Check
-===============================
-
-[OK] Docker is installed
-[OK] Docker Compose is available
-[OK] Tailscale is running and authenticated
-
-STEP 2: Generate Cookie Secret
-==================================
-
-Generated secure cookie secret (Base64 URL-safe)
-```
-
-</details>
-
-### Manual Setup Steps
+### Manual Setup (Advanced)
 
 #### 3. Setup Allowed Users
 
@@ -461,29 +464,47 @@ tailscale funnel status
 
 ```
 Shark-no-Ninsho-Mon/
-├── docker-compose.yml     # Container orchestration
-├── .env                   # Environment configuration
-├── emails.txt             # Authorized users
-├── setup.sh               # Linux/macOS setup script
-├── setup.ps1              # Windows PowerShell setup
-├── README.md              # This documentation
-├── EXTRA-FEATURES.md      # Advanced configuration guide
-├── LICENSE                # MIT License
-└── app/                   # Flask application
-    ├── Dockerfile          # Application container
-    ├── app.py              # Main Flask app
-    ├── requirements.txt    # Python dependencies
-    ├── templates/          # HTML templates
-    │   ├── base.html
-    │   ├── index.html
-    │   ├── headers.html
-    │   ├── health_page.html
-    │   ├── logs.html
-    │   ├── unauthorized.html
-    │   └── 404.html
-    └── static/             # CSS and JavaScript
-        ├── css/style.css
-        └── js/app.js
+├── docker-compose.yml        # Container orchestration
+├── .env                      # Environment configuration (auto-generated)
+├── .env.template             # Environment template
+├── .gitignore                # Git ignore rules
+├── README.md                 # This documentation
+├── CHANGELOG.md              # Version history
+├── SECURITY.md               # Security guidelines
+├── LICENSE                   # MIT License
+│
+├── setup-wizard.py           # Web-based setup wizard (NEW!)
+├── setup_templates/          # Setup wizard HTML
+│   └── setup_wizard.html     # Beautiful web interface
+├── generate-secrets.py       # Standalone secret generator
+│
+└── app/                      # Flask application
+    ├── Dockerfile            # Application container
+    ├── app.py                # Main Flask app with route manager
+    ├── routes_db.py          # TinyDB route manager
+    ├── proxy_handler.py      # Request proxy handler
+    ├── dev.py                # Development runner
+    ├── requirements.txt      # Python dependencies
+    │
+    ├── templates/            # HTML templates
+    │   ├── base.html         # Base template
+    │   ├── index.html        # Dashboard
+    │   ├── admin.html        # Route manager UI
+    │   ├── headers.html      # Request headers view
+    │   ├── logs.html         # Access logs
+    │   ├── health_page.html  # Health check
+    │   ├── unauthorized.html # 403 page
+    │   └── 404.html          # 404 page
+    │
+    ├── static/               # CSS and JavaScript
+    │   ├── css/
+    │   │   ├── style.css     # Main stylesheet
+    │   │   └── admin.css     # Admin UI styles
+    │   └── js/
+    │       ├── app.js        # Main JavaScript
+    │       └── admin.js      # Route manager logic
+    │
+    └── test_*.py             # Unit tests
 ```
 
 ---
