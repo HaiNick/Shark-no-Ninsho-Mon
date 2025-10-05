@@ -78,7 +78,7 @@ function renderRoutes(routesList) {
             </td>
             <td><span class="route-path">${route.path}</span></td>
             <td>${route.name}</td>
-            <td><span class="route-target">${route.target_ip}:${route.target_port}</span></td>
+            <td><span class="route-target">${route.protocol}://${route.target_ip}:${route.target_port}${route.target_path || '/'}</span></td>
             <td>${route.protocol.toUpperCase()}</td>
             <td>
                 <label class="toggle-switch">
@@ -173,6 +173,7 @@ function editRoute(routeId) {
     document.getElementById('name').value = route.name;
     document.getElementById('target_ip').value = route.target_ip;
     document.getElementById('target_port').value = route.target_port;
+    document.getElementById('target_path').value = route.target_path || '/';
     document.getElementById('protocol').value = route.protocol;
     document.getElementById('timeout').value = route.timeout || 30;
     document.getElementById('enabled').checked = route.enabled;
@@ -198,6 +199,7 @@ async function handleSubmit(event) {
         name: formData.get('name'),
         target_ip: formData.get('target_ip'),
         target_port: parseInt(formData.get('target_port')),
+        target_path: formData.get('target_path') || '/',
         protocol: formData.get('protocol'),
         timeout: parseInt(formData.get('timeout')),
         enabled: formData.get('enabled') === 'on',

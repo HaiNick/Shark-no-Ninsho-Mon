@@ -34,10 +34,11 @@ settings = get_settings()
 app.config['SECRET_KEY'] = settings.secret_key
 
 # Initialize rate limiter
+# No default limits - apply specific limits only to sensitive endpoints
 limiter = Limiter(
     app=app,
     key_func=get_remote_address,
-    default_limits=["200 per day", "50 per hour"],
+    default_limits=[],
     storage_uri="memory://"
 )
 
@@ -187,7 +188,11 @@ def whoami():
         'email': email,
         'authorized': is_authorized(),
         'ip': request.remote_addr,
-        'user_agent': request.headers.get('User-Agent', '')
+        'user_agent': request.headers.get('User-Agent', ''),
+        'request_url': request.url,
+        'request_host': request.host,
+        'x_forwarded_host': request.headers.get('X-Forwarded-Host', 'none'),
+        'x_forwarded_proto': request.headers.get('X-Forwarded-Proto', 'none')
     })
 
 
@@ -256,6 +261,7 @@ def api_create_route():
             name=data.get('name'),
             target_ip=data.get('target_ip'),
             target_port=data.get('target_port'),
+            target_path=data.get('target_path', '/'),
             protocol=data.get('protocol', 'http'),
             enabled=parse_bool(data.get('enabled', True), True),
             health_check=parse_bool(data.get('health_check', True), True),
@@ -323,6 +329,9 @@ def api_update_route(route_id):
 
         if 'target_port' in data:
             updates['target_port'] = route_manager.validate_port(data['target_port'])
+
+        if 'target_path' in data:
+            updates['target_path'] = data['target_path'] if data['target_path'] else '/'
 
         if 'protocol' in data:
             updates['protocol'] = route_manager.validate_protocol(data['protocol'])
@@ -422,6 +431,7 @@ def api_toggle_route(route_id):
 # ============================================================================
 
 @app.route('/<path:full_path>', methods=['GET', 'POST', 'PUT', 'DELETE', 'PATCH'])
+@limiter.exempt  # No rate limit for proxy - backend services handle their own rate limiting
 def dynamic_proxy(full_path):
     """
     Dynamic proxy handler - catches all unmatched routes
@@ -436,6 +446,9 @@ def dynamic_proxy(full_path):
     path_parts = full_path.split('/', 1)
     route_path = '/' + path_parts[0]
     sub_path = '/' + path_parts[1] if len(path_parts) > 1 else ''
+    
+    # Debug logging
+    logger.info(f"PROXY - Full path: {full_path} | Route path: {route_path} | Sub path: {sub_path}")
     
     # Check if route exists
     route = route_manager.get_route_by_path(route_path)

@@ -243,6 +243,9 @@ class RouteManager:
         if 'target_port' in updates:
             sanitized['target_port'] = self.validate_port(updates['target_port'])
 
+        if 'target_path' in updates:
+            sanitized['target_path'] = str(updates['target_path']).strip()
+
         if 'protocol' in updates:
             sanitized['protocol'] = self.validate_protocol(updates['protocol'])
 
