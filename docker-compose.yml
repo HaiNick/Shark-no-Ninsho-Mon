@@ -1,6 +1,4 @@
-﻿version: "3.8"
-
-services:
+﻿services:
   app:
     build: ./app
     ports:
@@ -78,11 +76,12 @@ services:
 
   # New: Caddy edge proxy with Admin API enabled
   caddy:
-    image: caddy:2.8
+    image: caddy:2.8-alpine
     restart: unless-stopped
     volumes:
-      - ./caddy/base.json:/etc/caddy/config.json:ro
-    command: ["caddy","run","--config","/etc/caddy/config.json","--adapter","json"]
+      - ./caddy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
     ports:
       - "8080:8080"   # local edge proxy HTTP
       - "2019:2019"   # Caddy Admin API
@@ -93,3 +92,7 @@ services:
       options:
         max-size: "10m"
         max-file: "3"
+
+volumes:
+  caddy_data:
+  caddy_config:

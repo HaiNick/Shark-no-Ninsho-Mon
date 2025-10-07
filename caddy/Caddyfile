@@ -1,0 +1,19 @@
+{
+	admin :2019
+	auto_https off
+}
+
+:8080 {
+	# Enable detailed logging
+	log {
+		output stdout
+		format console
+		level INFO
+	}
+
+	# Default route - proxy to Flask app
+	reverse_proxy app:8000 {
+		header_up X-Forwarded-Prefix /
+		header_up X-Forwarded-PathBase /
+	}
+}
