@@ -11,7 +11,8 @@ services:
     environment:
       - FLASK_ENV=production
       - EMAILS_FILE_PATH=/app/emails.txt
-      - LOG_FILE_PATH=/app/access.log
+      # Prefer stdout logging; Docker will capture it
+      # - LOG_FILE_PATH=/app/access.log
     healthcheck:
       test: ["CMD", "python3", "-c", "import requests; requests.get('http://localhost:8000/health').raise_for_status()"]
       interval: 30s
@@ -19,6 +20,11 @@ services:
       retries: 3
       start_period: 40s
     restart: unless-stopped
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
 
   oauth2-proxy:
     image: quay.io/oauth2-proxy/oauth2-proxy:v7.12.0-alpine
@@ -46,6 +52,10 @@ services:
       OAUTH2_PROXY_SKIP_PROVIDER_BUTTON: "true"
       OAUTH2_PROXY_COOKIE_SECURE: "true"
       OAUTH2_PROXY_COOKIE_SAMESITE: "lax"
+      # Enable detailed logging
+      OAUTH2_PROXY_STANDARD_LOGGING: "true"
+      OAUTH2_PROXY_REQUEST_LOGGING: "true"
+      OAUTH2_PROXY_AUTH_LOGGING: "true"
     volumes:
       - ./emails.txt:/etc/oauth2-proxy/emails.txt:ro
     depends_on:
@@ -60,6 +70,11 @@ services:
       retries: 3
       start_period: 40s
     restart: unless-stopped
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
 
   # New: Caddy edge proxy with Admin API enabled
   caddy:
@@ -73,3 +88,8 @@ services:
       - "2019:2019"   # Caddy Admin API
     networks:
       - default
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
