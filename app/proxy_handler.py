@@ -108,6 +108,9 @@ class ProxyHandler:
         # Build target URL
         target_url = self._build_target_url(route, sub_path)
         
+        # Stash the mount path on the route for header preparation (X-Forwarded-Prefix)
+        route['_mount_path'] = route_path
+        
         # Prepare headers
         headers = self._prepare_headers(route)
         
@@ -263,23 +266,18 @@ class ProxyHandler:
         headers['X-Forwarded-Proto'] = request.headers.get('X-Forwarded-Proto', request.scheme)
         headers['X-Forwarded-Host'] = request.headers.get('X-Forwarded-Host', request.host)
         headers['X-Forwarded-Port'] = request.environ.get('SERVER_PORT', '')
-        
-        # Help backends that honor a path base/prefix (useful for Jellyfin/.NET)
-        # Use the route path as the prefix (e.g., /jellyfin)
-        route_path = route.get('path', '').rstrip('/')
-        if route_path:
-            headers.setdefault('X-Forwarded-Prefix', route_path)
-            headers.setdefault('X-Forwarded-PathBase', route_path)
-        
-        # RFC 7239 Forwarded header for observability at the backend
-        # for=<client>;proto=<scheme>;host="<host>"
+
+        # Prefix headers for apps mounted under a subpath (e.g., /jellyfin)
+        prefix = route.get('_mount_path') or route.get('path') or route.get('prefix') or ''
+        if prefix:
+            headers.setdefault('X-Forwarded-Prefix', prefix)
+            headers.setdefault('X-Forwarded-PathBase', prefix)
+
+        # RFC 7239 Forwarded header goes to the backend request (not the response)
         client_ip = request.remote_addr or 'unknown'
-        forwarded = f'for="{client_ip}";proto={request.scheme};host="{request.host}"'
-        existing_forwarded = headers.get('Forwarded')
-        if existing_forwarded:
-            headers['Forwarded'] = existing_forwarded + ', ' + forwarded
-        else:
-            headers['Forwarded'] = forwarded
+        forwarded_val = f'for="{client_ip}";proto={request.scheme};host="{request.host}"'
+        existing_fwd = request.headers.get('Forwarded')
+        headers['Forwarded'] = f'{existing_fwd}, {forwarded_val}' if existing_fwd else forwarded_val
         
         # Set Host header if preserve_host is enabled (for host-based routing)
         if route.get('preserve_host', False):
