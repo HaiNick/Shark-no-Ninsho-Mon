@@ -19,6 +19,7 @@ load_dotenv()
 
 from routes_db import RouteManager
 from proxy_handler import ProxyHandler
+from caddy_manager import CaddyManager
 
 # Configure logging
 logging.basicConfig(
@@ -45,6 +46,7 @@ limiter = Limiter(
 # Initialize route manager and proxy handler
 route_manager = RouteManager(settings.routes_db_path)
 proxy_handler = ProxyHandler(route_manager, verify_ssl=settings.upstream_ssl_verify)
+caddy_mgr = CaddyManager()  # uses http://caddy:2019 and :8080 by default
 
 def _load_authorized_emails(path: str) -> Set[str]:
     emails: Set[str] = set()
@@ -272,6 +274,13 @@ def api_create_route():
         
         logger.info(f"ROUTE_ADD - User: {email} | Path: {route['path']} | Target: {route['target_ip']}:{route['target_port']}")
         
+        # After DB change, resync Caddy
+        try:
+            routes = route_manager.get_all_routes()
+            caddy_mgr.sync(routes)
+        except Exception as e:
+            logger.exception("CADDY_SYNC after add failed: %s", e)
+        
         return jsonify(route), 201
     
     except ValueError as e:
@@ -358,6 +367,14 @@ def api_update_route(route_id):
         
         if success:
             logger.info(f"ROUTE_UPDATE - User: {email} | Route: {route_id} | Changes: {list(updates.keys())}")
+            
+            # After DB change, resync Caddy
+            try:
+                routes = route_manager.get_all_routes()
+                caddy_mgr.sync(routes)
+            except Exception as e:
+                logger.exception("CADDY_SYNC after update failed: %s", e)
+            
             return jsonify({'success': True, 'route': route_manager.get_route_by_id(route_id)})
         else:
             return jsonify({'error': 'Route not found'}), 404
@@ -383,6 +400,14 @@ def api_delete_route(route_id):
     
     if success:
         logger.info(f"ROUTE_DELETE - User: {email} | Route: {route_id}")
+        
+        # After DB change, resync Caddy
+        try:
+            routes = route_manager.get_all_routes()
+            caddy_mgr.sync(routes)
+        except Exception as e:
+            logger.exception("CADDY_SYNC after delete failed: %s", e)
+        
         return jsonify({'success': True})
     else:
         return jsonify({'error': 'Route not found'}), 404
@@ -423,42 +448,25 @@ def api_toggle_route(route_id):
     
     logger.info(f"ROUTE_TOGGLE - User: {email} | Route: {route_id} | Enabled: {new_enabled}")
     
+    # After DB change, resync Caddy
+    try:
+        routes = route_manager.get_all_routes()
+        caddy_mgr.sync(routes)
+    except Exception as e:
+        logger.exception("CADDY_SYNC after toggle failed: %s", e)
+    
     return jsonify({'success': True, 'enabled': new_enabled})
 
 
 # ============================================================================
-# DYNAMIC PROXY HANDLER (Catch-all)
+# DYNAMIC PROXY HANDLER - REMOVED
 # ============================================================================
-
-@app.route('/<path:full_path>', methods=['GET', 'POST', 'PUT', 'DELETE', 'PATCH'])
-@limiter.exempt  # No rate limit for proxy - backend services handle their own rate limiting
-def dynamic_proxy(full_path):
-    """
-    Dynamic proxy handler - catches all unmatched routes
-    This should be the last route defined
-    """
-    email = get_user_email()
-    
-    if not is_authorized():
-        return render_template('unauthorized.html', email=email), 403
-    
-    # Extract route path (first segment)
-    path_parts = full_path.split('/', 1)
-    route_path = '/' + path_parts[0]
-    sub_path = '/' + path_parts[1] if len(path_parts) > 1 else ''
-    
-    # Debug logging
-    logger.info(f"PROXY - Full path: {full_path} | Route path: {route_path} | Sub path: {sub_path}")
-    
-    # Check if route exists
-    route = route_manager.get_route_by_path(route_path)
-    
-    if not route:
-        logger.warning(f"404 - User: {email} | Path: /{full_path} | IP: {request.remote_addr}")
-        return render_template('404.html', path=f'/{full_path}'), 404
-    
-    # Proxy the request
-    return proxy_handler.proxy_request(route_path, sub_path)
+# 
+# The data path proxy is now handled by Caddy (edge proxy).
+# Flask only manages the route configuration and syncs it to Caddy via Admin API.
+# All proxy requests go through: OAuth2 Proxy -> Caddy -> Backend Services
+# 
+# The proxy_handler is kept only for health checks and connection testing.
 
 
 # ============================================================================
@@ -550,6 +558,14 @@ if __name__ == '__main__':
     
     if not debug or os.environ.get('WERKZEUG_RUN_MAIN') == 'true':
         start_health_check_worker()
+        
+        # Sync routes to Caddy on startup
+        try:
+            routes = route_manager.get_all_routes()
+            caddy_mgr.sync(routes)
+            logger.info("CADDY_SYNC: completed on startup")
+        except Exception as e:
+            logger.exception("CADDY_SYNC on startup failed: %s", e)
 
     logger.info(f"Starting Shark-no-Ninsho-Mon on port {port}")
     logger.info(f"Authorized emails: {len(AUTHORIZED_EMAILS)}")
