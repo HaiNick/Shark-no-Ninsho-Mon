@@ -4,7 +4,8 @@ Caddy Manager - Syncs route configuration to Caddy Admin API
 import os
 import json
 import logging
-from typing import List, Dict, Any
+import time
+from typing import List, Dict, Any, Optional
 import requests
 
 log = logging.getLogger(__name__)
@@ -131,3 +132,49 @@ class CaddyManager:
             "handle": [ handler ],
             "terminal": True
         }
+
+    def test_connection(self, route: Dict[str, Any]) -> dict:
+        """
+        Test connectivity to a backend service
+        
+        Args:
+            route: Route dict with target_ip, target_port, protocol, timeout
+        
+        Returns:
+            dict with status and response time
+        """
+        target_ip = route['target_ip']
+        target_port = route['target_port']
+        protocol = route.get('protocol', 'http')
+        timeout = route.get('timeout', 30)
+        
+        target_url = f"{protocol}://{target_ip}:{target_port}/"
+        
+        try:
+            start = time.time()
+            resp = requests.get(target_url, timeout=min(timeout, 10), verify=False)
+            duration = int((time.time() - start) * 1000)  # ms
+            
+            # Determine status
+            if resp.status_code < 500:
+                status = 'online'
+                if duration > 2000:
+                    status = 'slow'
+            else:
+                status = 'error'
+            
+            return {
+                'success': True,
+                'status': status,
+                'status_code': resp.status_code,
+                'response_time': duration
+            }
+            
+        except requests.exceptions.Timeout:
+            return {'success': False, 'error': 'Connection timeout', 'status': 'timeout'}
+        
+        except requests.exceptions.ConnectionError:
+            return {'success': False, 'error': 'Connection refused', 'status': 'offline'}
+        
+        except Exception as e:
+            return {'success': False, 'error': str(e), 'status': 'error'}

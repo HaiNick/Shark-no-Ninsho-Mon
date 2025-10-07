@@ -18,7 +18,6 @@ from config import get_settings
 load_dotenv()
 
 from routes_db import RouteManager
-from proxy_handler import ProxyHandler
 from caddy_manager import CaddyManager
 
 # Configure logging
@@ -43,9 +42,8 @@ limiter = Limiter(
     storage_uri="memory://"
 )
 
-# Initialize route manager and proxy handler
+# Initialize route manager and Caddy manager
 route_manager = RouteManager(settings.routes_db_path)
-proxy_handler = ProxyHandler(route_manager, verify_ssl=settings.upstream_ssl_verify)
 caddy_mgr = CaddyManager()  # uses http://caddy:2019 and :8080 by default
 
 def _load_authorized_emails(path: str) -> Set[str]:
@@ -422,7 +420,17 @@ def api_test_route(route_id):
     if not is_authorized():
         return jsonify({'error': 'Unauthorized'}), 403
     
-    result = proxy_handler.test_connection(route_id)
+    route = route_manager.get_route_by_id(route_id)
+    if not route:
+        return jsonify({'error': 'Route not found'}), 404
+    
+    result = caddy_mgr.test_connection(route)
+    
+    # Update route status in database
+    if result.get('success'):
+        route_manager.update_route_status(route_id, result['status'])
+    else:
+        route_manager.update_route_status(route_id, result.get('status', 'error'))
     
     logger.info(f"ROUTE_TEST - User: {email} | Route: {route_id} | Result: {result.get('status', 'error')}")
     
@@ -511,7 +519,11 @@ def health_check_worker(stop_event: threading.Event, interval: int):
             routes = route_manager.get_all_routes()
             for route in routes:
                 if route.get('health_check', False) and route.get('enabled', True):
-                    proxy_handler.test_connection(route['id'])
+                    result = caddy_mgr.test_connection(route)
+                    if result.get('success'):
+                        route_manager.update_route_status(route['id'], result['status'])
+                    else:
+                        route_manager.update_route_status(route['id'], result.get('status', 'error'))
 
             logger.info(f"HEALTH_CHECK - Checked {len(routes)} routes")
 
