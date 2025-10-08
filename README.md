@@ -14,7 +14,7 @@
 ![GitHub issues](https://img.shields.io/github/issues/HaiNick/Shark-no-Ninsho-Mon)
 ![GitHub last commit](https://img.shields.io/github/last-commit/HaiNick/Shark-no-Ninsho-Mon)
 
-Shark-no-Ninsho-Mon is an opinionated reverse proxy gateway that combines Tailscale Funnel, OAuth2 Proxy, and a rich Flask dashboard to publish internal services safely. Manage routes, monitor health, and stay productive whether you deploy from Linux or Windows.
+Shark-no-Ninsho-Mon is an opinionated reverse proxy gateway that combines Tailscale Funnel, OAuth2 Proxy, Caddy edge proxy, and a rich Flask dashboard to publish internal services safely. Routes are managed dynamically and hot-reloaded without service interruption. Stay productive whether you deploy from Linux or Windows.
 
 ---
 
@@ -24,6 +24,7 @@ Shark-no-Ninsho-Mon is an opinionated reverse proxy gateway that combines Tailsc
 - [Quick start](#quick-start)
 - [Configuration](#configuration)
 - [Architecture](#architecture)
+- [Caddy edge proxy](#caddy-edge-proxy)
 - [Day-2 operations](#day-2-operations)
 - [Local development](#local-development)
 - [Project structure](#project-structure)
@@ -43,21 +44,27 @@ Shark-no-Ninsho-Mon is an opinionated reverse proxy gateway that combines Tailsc
 - Google OAuth2 front door with email allow lists
 - Tight integration with Tailscale Funnel (no port-forwarding required)
 - Configurable upstream TLS verification for zero-trust backends
+- Caddy edge proxy with dynamic routing and hot-reload capabilities
 
 ### Route management & health
 - Web-based Route Manager with create/update/delete/enable/disable
+- Dynamic route synchronization via Caddy Admin API (no container restarts)
 - Background connectivity checks with configurable intervals
 - REST API for automation (`/api/routes`, `/api/routes/<id>/toggle`, etc.)
+- Per-route configuration: protocol (HTTP/HTTPS), host preservation, compression settings
 
 ### Developer experience
 - Cross-platform setup wizard served locally via Flask
 - Centralised configuration loader (`app/config.py`) for predictable overrides
 - Development mode toggle that bypasses OAuth while you iterate locally
-- Unit tests that cover TinyDB routing logic and proxy behaviour
+- Separation of concerns: Flask handles control plane, Caddy handles data plane
+- Unit tests that cover TinyDB routing logic, Caddy sync, and proxy behaviour
 
 ### Operations-friendly by default
 - Structured request logging and `/health` heartbeat endpoint
 - Headers/logs viewers for quick debugging of forwarded identity
+- Hot-reload of routes without service interruption
+- Caddy Admin API accessible on port 2019 for advanced operations
 - Works seamlessly on Linux, macOS, and Windows machines
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
@@ -91,6 +98,11 @@ Open your browser to [http://localhost:8080](http://localhost:8080) (or `http://
 3. **Add your authorized email address** (the Google account that will access the dashboard).
 4. Generate secrets and save the resulting `.env` and `emails.txt`.
 5. (Optional) Start the Docker stack from the wizard once configuration is complete.
+
+The stack will launch three services:
+- **Caddy** (port 8080): Edge proxy handling all data plane traffic
+- **OAuth2 Proxy** (port 4180): Google OAuth2 authentication layer
+- **Flask** (port 8000): Control plane for route management and dashboard
 
 > **Security Note**: The wizard is accessible on your local network only. It is NOT exposed to the internet unless you explicitly configure port forwarding. No authentication is required, so only run it on trusted networks.
 
@@ -179,18 +191,28 @@ graph TB
     end
     subgraph Compose[Docker Compose]
       OAuth[oauth2-proxy :4180]
-      App[Flask gateway :5000]
+      Caddy[Caddy Edge Proxy :8080]
+      App[Flask Control Plane :8000]
       Emails[(emails.txt)]
       Routes[(routes.json)]
+    end
+    subgraph Backends[Your Services]
+      B1[Service 1]
+      B2[Service 2]
+      B3[Service N...]
     end
   end
   U -->|HTTPS| Funnel
   Funnel --> OAuth
-  OAuth -->|X-Forwarded headers| App
+  OAuth -->|X-Forwarded headers| Caddy
   OAuth -.-> Emails
+  Caddy -->|/dashboard, /api| App
+  Caddy -->|/service1| B1
+  Caddy -->|/service2| B2
+  Caddy -->|/serviceN| B3
+  App -.->|Admin API| Caddy
   App -.-> Routes
   OAuth -.->|/oauth2/callback| Google[Google OAuth]
-  App -.->|UI/API| U
 ```
 
 ### Request flow
@@ -201,19 +223,82 @@ sequenceDiagram
   participant F as Funnel (HTTPS)
   participant O as oauth2-proxy
   participant G as Google OAuth
-  participant A as Flask Gateway
+  participant C as Caddy Edge Proxy
+  participant A as Flask Control Plane
   participant D as Route Manager (TinyDB)
+  participant B as Backend Service
 
-  U->>F: GET https://host.ts.net/
+  U->>F: GET https://host.ts.net/jellyfin
   F->>O: Forward request
   O-->>U: Redirect to Google login
   U->>G: Authenticate
   G-->>O: Authorisation code
   O->>G: Exchange for ID token
   O->>O: Check email against allow list
-  O->>A: Forward request with identity headers
-  A->>D: Resolve route definition
-  A-->>U: Proxy response or dashboard
+  O->>C: Forward with X-Forwarded-Email header
+  C->>C: Match route /jellyfin
+  C->>B: Reverse proxy to backend
+  B-->>C: Response
+  C-->>U: Response
+
+  Note over U,A: Managing routes via dashboard
+  U->>F: POST https://host.ts.net/api/routes
+  F->>O: Authenticate
+  O->>C: Forward to Flask
+  C->>A: Route to Flask control plane
+  A->>D: Update route in TinyDB
+  A->>C: Sync config via Admin API
+  C->>C: Hot-reload routes
+  A-->>U: Success response
+```
+
+<p align="right">(<a href="#readme-top">back to top</a>)</p>
+
+---
+
+## Caddy edge proxy
+
+Shark-no-Ninsho-Mon uses **Caddy** as a high-performance edge proxy that sits between OAuth2 Proxy and your backend services. This architecture provides:
+
+### Key benefits
+
+- **Hot reload**: Routes are updated dynamically via the Caddy Admin API without container restarts
+- **Performance**: Caddy handles all data plane traffic, freeing Flask to focus on the control plane
+- **Flexibility**: Per-route configuration for protocol, host headers, compression, and TLS settings
+- **Reliability**: Battle-tested reverse proxy with automatic HTTP/2 and connection pooling
+
+### How it works
+
+1. **Control plane (Flask)**: Manages route configuration in TinyDB and exposes the dashboard/API
+2. **Data plane (Caddy)**: Handles all incoming traffic and proxies to backends based on route rules
+3. **Synchronization**: When you add/update/delete routes via the UI or API, Flask immediately syncs the new configuration to Caddy via its Admin API (port 2019)
+
+### Route configuration
+
+Each route supports:
+
+- `path`: Mount point (e.g., `/jellyfin`)
+- `target_ip` and `target_port`: Backend service location
+- `protocol`: `http` or `https`
+- `preserve_host`: Forward the original `Host` header to the backend
+- `no_upstream_compression`: Send `Accept-Encoding: identity` to prevent double compression
+- `force_content_encoding`: Override `Content-Encoding` header (`gzip` or `br`) for broken backends
+- `sni`: Custom SNI hostname for HTTPS backends
+- `insecure_skip_verify`: Skip TLS verification (use with caution)
+
+### Accessing the Admin API
+
+The Caddy Admin API is exposed on port 2019. You can query or modify configuration directly:
+
+```bash
+# View current routes
+curl http://localhost:2019/config/apps/http/servers/srv0/routes | jq
+
+# View full Caddy config
+curl http://localhost:2019/config/ | jq
+
+# Test a config change (use Flask API instead for persistent changes)
+curl -X POST http://localhost:2019/load -H "Content-Type: application/json" -d @caddy/base.json
 ```
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
@@ -288,14 +373,20 @@ Shark-no-Ninsho-Mon/
 ├── setup_templates/             # Wizard UI assets
 ├── generate-secrets.py          # Stand-alone secret generator
 ├── app/
-│   ├── app.py                   # Flask gateway + REST API
+│   ├── app.py                   # Flask control plane + REST API
 │   ├── config.py                # Centralised settings loader
-│   ├── proxy_handler.py         # Reverse proxy implementation
+│   ├── caddy_manager.py         # Caddy Admin API client
 │   ├── routes_db.py             # TinyDB route manager
 │   ├── dev.py                   # Local development entry point
 │   ├── requirements.txt         # Python dependencies
+│   ├── test_app.py              # Flask app tests
+│   ├── test_caddy_manager.py    # Caddy manager tests
+│   ├── test_routes_db.py        # Route database tests
 │   ├── templates/               # Jinja templates for UI
 │   └── static/                  # CSS/JS assets
+├── caddy/
+│   ├── Caddyfile                # Base Caddy configuration
+│   └── base.json                # Caddy JSON config template
 ├── README.md
 ├── CHANGELOG.md
 ├── SECURITY.md
@@ -348,6 +439,13 @@ sudo docker compose up -d --build
 # Tail container logs
 docker compose logs -f app
 docker compose logs -f oauth2-proxy
+docker compose logs -f caddy
+
+# Check if all services are running
+docker compose ps
+
+# Restart a specific service
+docker compose restart caddy
 ```
 
 ### Tailscale Funnel issues
@@ -384,7 +482,7 @@ PY
 ### Route or proxy debugging
 
 ```bash
-# Check route definitions
+# Check route definitions in TinyDB
 python - <<'PY'
 from app.routes_db import RouteManager
 rm = RouteManager('app/routes.json')
@@ -393,6 +491,37 @@ PY
 
 # Exercise the REST API
 curl -H "X-Forwarded-Email: dev@localhost" http://localhost:8000/api/routes
+
+# Check Caddy's active configuration
+curl http://localhost:2019/config/apps/http/servers/srv0/routes | jq
+
+# View Caddy logs
+docker compose logs -f caddy
+
+# Test a specific backend connection
+curl -H "X-Forwarded-Email: dev@localhost" \
+     -X POST http://localhost:8000/api/routes/test \
+     -H "Content-Type: application/json" \
+     -d '{"target_ip":"192.168.1.100","target_port":8080,"protocol":"http"}'
+```
+
+### Caddy Admin API issues
+
+```bash
+# Verify Caddy Admin API is accessible
+curl http://localhost:2019/config/ | jq .
+
+# If routes aren't syncing, check Flask logs for CADDY_SYNC errors
+docker compose logs app | grep CADDY_SYNC
+
+# Manually trigger a route sync (requires Python environment)
+python - <<'PY'
+from app.routes_db import RouteManager
+from app.caddy_manager import CaddyManager
+rm = RouteManager('app/routes.json')
+cm = CaddyManager(admin_url='http://localhost:2019')
+cm.sync(rm.get_all_routes())
+PY
 ```
 
 ### Need a fresh configuration?
@@ -409,10 +538,12 @@ python setup-wizard.py
 
 ## Customization
 
-- **Bring your own app:** Replace the Flask routes in `app/app.py` or proxy to additional backends through the Route Manager.
-- **Integrate with other identity providers:** OAuth2 Proxy supports many providers—adjust the environment variables and compose file accordingly.
-- **Harden security:** Enforce IP restrictions, tweak cookie policies, or enable TLS verification upstream using the optional environment variables.
-- **Automate routes:** Use the REST API to seed or edit routes from CI/CD pipelines.
+- **Add backend services:** Use the web UI or REST API to add routes pointing to any HTTP/HTTPS service on your network. Changes take effect immediately without container restarts.
+- **Customize Caddy:** Modify `caddy/Caddyfile` for base configuration or use the Admin API for advanced scenarios like custom middleware or logging.
+- **Integrate with other identity providers:** OAuth2 Proxy supports many providers (GitHub, GitLab, Azure AD, etc.)—adjust the environment variables and compose file accordingly.
+- **Harden security:** Enforce IP restrictions, tweak cookie policies, enable TLS verification upstream, or configure SNI for backends using the per-route settings.
+- **Automate routes:** Use the REST API (`/api/routes`) to seed, update, or manage routes from CI/CD pipelines or infrastructure-as-code tools.
+- **Extend the control plane:** Add custom endpoints to `app/app.py` for integration with monitoring, alerting, or other operational tools.
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
 
@@ -439,6 +570,7 @@ This project is distributed under the [MIT License](LICENSE).
 
 - [Tailscale](https://tailscale.com/) for effortless secure networking
 - [OAuth2 Proxy](https://oauth2-proxy.github.io/oauth2-proxy/) for rock-solid auth
+- [Caddy](https://caddyserver.com/) for the powerful and elegant edge proxy with Admin API
 - [Dracula Theme](https://draculatheme.com/) inspiration for the setup wizard facelift
 - [Material Symbols](https://fonts.google.com/icons) by Google, used under the Apache License 2.0
 
