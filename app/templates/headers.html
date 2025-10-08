@@ -1,28 +1,31 @@
 {% extends "base.html" %}
 
-{% block title %}Authentication Headers - Shark Test{% endblock %}
-
-{% block header_title %}AUTHENTICATION HEADERS DEBUG{% endblock %}
-{% block header_subtitle %}Header Analysis and Debugging Information{% endblock %}
+{% block title %}Request Headers - Shark-no-Ninsho-Mon{% endblock %}
 
 {% block content %}
-<div class="info-summary">
-    <h3>Parsed Information Summary</h3>
-    <p><strong>Detected Email:</strong> <span class="highlight">{{ email }}</span></p>
-    <p><strong>Detected IP:</strong> <span class="highlight">{{ real_ip }}</span></p>
+<div class="container">
+    <div class="card">
+        <h1>Request Headers</h1>
+        <p class="subtitle">Viewing headers for: <strong>{{ email }}</strong></p>
+        
+        <div class="headers-container">
+            <table class="headers-table">
+                <thead>
+                    <tr>
+                        <th>Header</th>
+                        <th>Value</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for key, value in headers.items() %}
+                    <tr>
+                        <td class="header-key">{{ key }}</td>
+                        <td class="header-value">{{ value }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
 </div>
-
-<div class="code-section">
-    <h3>Authentication Headers</h3>
-    <div class="code-block">{% for header, value in auth_headers %}{{ header }}: {{ value or 'None' }}
-{% endfor %}</div>
-</div>
-
-<div class="code-section">
-    <h3>All Request Headers</h3>
-    <div class="code-block">{% for header, value in all_headers %}{{ header }}: {{ value }}
-{% endfor %}</div>
-</div>
-
-<a href="/" class="back-link">< Back to Home</a>
 {% endblock %}

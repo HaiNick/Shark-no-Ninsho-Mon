@@ -1,26 +1,48 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-theme="light">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>{% block title %}Shark Authentication Test{% endblock %}</title>
+    <title>{% block title %}Shark-no-Ninsho-Mon{% endblock %}</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
-    <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
-    {% block extra_head %}{% endblock %}
+    {% block extra_css %}{% endblock %}
 </head>
 <body>
-    <div class="container">
-        <div class="header">
-            <h1>{% block header_title %}SHARK AUTHENTICATION TEST{% endblock %}</h1>
-            <p>{% block header_subtitle %}Secure Access via Tailscale Funnel + OAuth2-Proxy{% endblock %}</p>
-        </div>
-        
-        <div class="content">
-            {% block content %}{% endblock %}
-        </div>
+    <!-- Animated Background -->
+    <div class="background-container">
+        <div class="gradient-bg"></div>
+        <div class="particles" id="particles"></div>
     </div>
-    
+
+    <!-- Navigation -->
+    <nav class="navbar">
+        <div class="nav-container">
+            <div class="nav-brand">
+                <span class="brand-text">Shark-no-Ninsho-Mon</span>
+            </div>
+            <div class="nav-links">
+                <a href="/" class="nav-link">Dashboard</a>
+                <a href="/admin" class="nav-link">Manage Routes</a>
+                <a href="/headers" class="nav-link">Headers</a>
+                <a href="/logs" class="nav-link">Logs</a>
+                <button id="theme-toggle" class="theme-toggle" title="Toggle theme">
+                    <span class="theme-icon">Dark</span>
+                </button>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Main Content -->
+    <main class="main-content">
+        {% block content %}{% endblock %}
+    </main>
+
+    <!-- Footer -->
+    <footer class="footer">
+        <p>&copy; 2025 Shark-no-Ninsho-Mon | Protected by OAuth2</p>
+    </footer>
+
     <script src="{{ url_for('static', filename='js/app.js') }}"></script>
-    {% block extra_scripts %}{% endblock %}
+    {% block extra_js %}{% endblock %}
 </body>
 </html>

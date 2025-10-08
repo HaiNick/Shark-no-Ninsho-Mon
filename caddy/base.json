@@ -1,0 +1,33 @@
+{
+  "admin": { "listen": ":2019" },
+  "apps": {
+    "http": {
+      "servers": {
+        "srv0": {
+          "listen": [":8080"],
+          "allow_h2c": true,
+          "routes": [
+            {
+              "match": [ { "path": ["/", "/static/*"] } ],
+              "handle": [
+                {
+                  "handler": "reverse_proxy",
+                  "upstreams": [ { "dial": "app:8000" } ],
+                  "headers": {
+                    "request": {
+                      "set": {
+                        "X-Forwarded-Prefix": ["/"],
+                        "X-Forwarded-PathBase": ["/"]
+                      }
+                    }
+                  }
+                }
+              ],
+              "terminal": false
+            }
+          ]
+        }
+      }
+    }
+  }
+}

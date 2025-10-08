@@ -1,0 +1,226 @@
+{% extends "base.html" %}
+
+{% block title %}Route Manager - Shark-no-Ninsho-Mon{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/admin.css') }}">
+<style>
+.icon {
+    width: 20px;
+    height: 20px;
+    display: inline-block;
+    vertical-align: middle;
+}
+
+.stat-icon .icon {
+    width: 28px;
+    height: 28px;
+}
+
+.spinner {
+    width: 20px;
+    height: 20px;
+    display: inline-block;
+    vertical-align: middle;
+}
+
+.spinner svg {
+    animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container admin-container">
+    <!-- Header -->
+    <div class="admin-header">
+        <div>
+            <h1>Route Manager</h1>
+            <p class="subtitle">Manage reverse proxy routes to your services</p>
+        </div>
+        <button class="btn btn-primary" onclick="showAddModal()">
+            <img src="{{ url_for('static', filename='icons/add.svg') }}" alt="" class="icon" aria-hidden="true">
+            Add Route
+        </button>
+    </div>
+
+    <!-- Stats Cards -->
+    <div class="stats-grid" id="stats-grid">
+        <div class="stat-card">
+            <div class="stat-icon" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);">
+                <img src="{{ url_for('static', filename='icons/alt_route.svg') }}" alt="" class="icon" aria-hidden="true">
+            </div>
+            <div class="stat-info">
+                <div class="stat-value" id="stat-total">0</div>
+                <div class="stat-label">Total Routes</div>
+            </div>
+        </div>
+        
+        <div class="stat-card">
+            <div class="stat-icon" style="background: linear-gradient(135deg, #48bb78 0%, #38a169 100%);">
+                <img src="{{ url_for('static', filename='icons/check_circle.svg') }}" alt="" class="icon" aria-hidden="true">
+            </div>
+            <div class="stat-info">
+                <div class="stat-value" id="stat-online">0</div>
+                <div class="stat-label">Online</div>
+            </div>
+        </div>
+        
+        <div class="stat-card">
+            <div class="stat-icon" style="background: linear-gradient(135deg, #f56565 0%, #c53030 100%);">
+                <img src="{{ url_for('static', filename='icons/cloud_off.svg') }}" alt="" class="icon" aria-hidden="true">
+            </div>
+            <div class="stat-info">
+                <div class="stat-value" id="stat-offline">0</div>
+                <div class="stat-label">Offline</div>
+            </div>
+        </div>
+        
+        <div class="stat-card">
+            <div class="stat-icon" style="background: linear-gradient(135deg, #ed8936 0%, #dd6b20 100%);">
+                <img src="{{ url_for('static', filename='icons/task_alt.svg') }}" alt="" class="icon" aria-hidden="true">
+            </div>
+            <div class="stat-info">
+                <div class="stat-value" id="stat-enabled">0</div>
+                <div class="stat-label">Enabled</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Routes Table -->
+    <div class="card">
+        <div class="card-header">
+            <h2>Routes</h2>
+            <div class="table-actions">
+                <div class="search-box">
+                    <img src="{{ url_for('static', filename='icons/search.svg') }}" alt="" class="icon" aria-hidden="true" style="position: absolute; left: 1rem;">
+                    <input type="text" id="search-input" placeholder="Search routes..." onkeyup="filterRoutes()">
+                </div>
+                <button class="btn btn-secondary" onclick="refreshRoutes()">
+                    <img src="{{ url_for('static', filename='icons/refresh.svg') }}" alt="" class="icon" aria-hidden="true">
+                    Refresh
+                </button>
+            </div>
+        </div>
+        
+        <div class="table-container">
+            <table class="routes-table" id="routes-table">
+                <thead>
+                    <tr>
+                        <th>Status</th>
+                        <th>Path</th>
+                        <th>Name</th>
+                        <th>Target</th>
+                        <th>Protocol</th>
+                        <th>Enabled</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody id="routes-tbody">
+                    <tr>
+                        <td colspan="7" class="loading">
+                            <span class="spinner">
+                                <img src="{{ url_for('static', filename='icons/progress_activity.svg') }}" alt="" aria-hidden="true">
+                            </span>
+                            Loading routes...
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<!-- Add/Edit Modal -->
+<div id="route-modal" class="modal">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h2 id="modal-title">Add New Route</h2>
+            <button class="modal-close" onclick="closeModal()">&times;</button>
+        </div>
+        
+        <form id="route-form" onsubmit="handleSubmit(event)">
+            <input type="hidden" id="route-id" name="id">
+            
+            <div class="form-group">
+                <label for="path">Route Path *</label>
+                <input type="text" id="path" name="path" placeholder="/jellyfin" required>
+                <small>Must start with /. Only lowercase, numbers, dash, underscore allowed.</small>
+            </div>
+            
+            <div class="form-group">
+                <label for="name">Service Name *</label>
+                <input type="text" id="name" name="name" placeholder="Jellyfin Media Server" required>
+            </div>
+            
+            <div class="form-row">
+                <div class="form-group">
+                    <label for="target_ip">Target IP Address *</label>
+                    <input type="text" id="target_ip" name="target_ip" placeholder="192.168.1.100" required>
+                    <small>Private IPs only (10.x, 192.168.x, 172.16-31.x)</small>
+                </div>
+                
+                <div class="form-group">
+                    <label for="target_port">Target Port *</label>
+                    <input type="number" id="target_port" name="target_port" placeholder="8096" min="1" max="65535" required>
+                </div>
+                
+                <div class="form-group">
+                    <label for="target_path">Target Base Path (optional)</label>
+                    <input type="text" id="target_path" name="target_path" value="/" placeholder="/jellyfin">
+                    <small>Base path on target server (e.g., /jellyfin for Jellyfin base URL)</small>
+                </div>
+            </div>
+            
+            <div class="form-row">
+                <div class="form-group">
+                    <label for="protocol">Protocol</label>
+                    <select id="protocol" name="protocol">
+                        <option value="http">HTTP</option>
+                        <option value="https">HTTPS</option>
+                    </select>
+                </div>
+                
+                <div class="form-group">
+                    <label for="timeout">Timeout (seconds)</label>
+                    <input type="number" id="timeout" name="timeout" value="30" min="5" max="300">
+                </div>
+            </div>
+            
+            <div class="form-group">
+                <label class="checkbox-label">
+                    <input type="checkbox" id="enabled" name="enabled" checked>
+                    <span>Enable this route</span>
+                </label>
+            </div>
+            
+            <div class="form-group">
+                <label class="checkbox-label">
+                    <input type="checkbox" id="health_check" name="health_check" checked>
+                    <span>Enable health checks</span>
+                </label>
+            </div>
+            
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" onclick="closeModal()">Cancel</button>
+                <button type="submit" class="btn btn-primary">
+                    <img src="{{ url_for('static', filename='icons/check.svg') }}" alt="" class="icon" aria-hidden="true">
+                    Save Route
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Toast Notification -->
+<div id="toast" class="toast"></div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="{{ url_for('static', filename='js/admin.js') }}"></script>
+{% endblock %}

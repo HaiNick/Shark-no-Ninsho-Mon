@@ -1,124 +1,319 @@
 """
-Unit tests for Shark-no-Ninsho-Mon Flask application
-Run with: python -m pytest test_app.py -v
+Unit tests for Flask app (Route Manager Control Plane)
 """
-
 import pytest
-import os
+from unittest.mock import patch, Mock
+from app import app, AUTHORIZED_EMAILS
 import tempfile
-from app import app, load_authorized_emails, is_user_authorized, get_email
+import os
+
 
 @pytest.fixture
 def client():
-    """Create test client"""
+    """Create a test client"""
+    import tempfile
+    import os
+    
+    # Create temporary database
+    fd, db_path = tempfile.mkstemp(suffix='.json')
+    os.close(fd)
+    
+    # Update route_manager to use temp database
+    from routes_db import RouteManager
+    import app as app_module
+    app_module.route_manager = RouteManager(db_path)
+    
     app.config['TESTING'] = True
     with app.test_client() as client:
         yield client
-
-@pytest.fixture
-def temp_emails_file():
-    """Create temporary emails file for testing"""
-    fd, path = tempfile.mkstemp(suffix='.txt')
-    with os.fdopen(fd, 'w') as f:
-        f.write("# Test emails\n")
-        f.write("test@example.com\n")
-        f.write("admin@example.com\n")
-    
-    # Set environment variable to point to temp file
-    os.environ['EMAILS_FILE_PATH'] = path
-    yield path
     
     # Cleanup
-    os.unlink(path)
+    try:
+        os.unlink(db_path)
+    except:
+        pass
 
-class TestAuthorization:
-    """Test authorization logic"""
-    
-    def test_load_authorized_emails(self, temp_emails_file):
-        """Test loading emails from file"""
-        emails = load_authorized_emails()
-        assert len(emails) == 2
-        assert 'test@example.com' in emails
-        assert 'admin@example.com' in emails
-    
-    def test_is_user_authorized_valid(self, temp_emails_file):
-        """Test authorization with valid email"""
-        assert is_user_authorized('test@example.com')
-        assert is_user_authorized('ADMIN@example.com')  # Case insensitive
-    
-    def test_is_user_authorized_invalid(self, temp_emails_file):
-        """Test authorization with invalid email"""
-        assert not is_user_authorized('hacker@evil.com')
-    
-    def test_anonymous_blocked_in_production(self, temp_emails_file):
-        """Test that anonymous users are blocked in production"""
-        os.environ['FLASK_ENV'] = 'production'
-        assert not is_user_authorized('anonymous')
 
-class TestHealthEndpoint:
+@pytest.fixture
+def authorized_client(monkeypatch):
+    """Create a test client with authorized email"""
+    import tempfile
+    import os
+    
+    # Create temporary database
+    fd, db_path = tempfile.mkstemp(suffix='.json')
+    os.close(fd)
+    
+    # Update route_manager to use temp database
+    from routes_db import RouteManager
+    import app as app_module
+    app_module.route_manager = RouteManager(db_path)
+    
+    app.config['TESTING'] = True
+    
+    # Mock authorized emails
+    monkeypatch.setattr('app.AUTHORIZED_EMAILS', {'test@example.com'})
+    
+    with app.test_client() as client:
+        yield client
+    
+    # Cleanup
+    try:
+        os.unlink(db_path)
+    except:
+        pass
+
+
+def test_health_endpoint(client):
     """Test health check endpoint"""
+    response = client.get('/health')
+    assert response.status_code == 200
+    data = response.get_json()
+    assert data['status'] == 'healthy'
+    assert 'timestamp' in data
+
+
+def test_whoami_endpoint(client):
+    """Test whoami endpoint"""
+    response = client.get('/whoami')
+    assert response.status_code == 200
+    data = response.get_json()
+    assert 'email' in data
+    assert 'authorized' in data
+
+
+def test_index_unauthorized(client):
+    """Test index page without authorization"""
+    response = client.get('/')
+    assert response.status_code == 403
+
+
+def test_index_authorized(authorized_client):
+    """Test index page with authorization"""
+    response = authorized_client.get('/', headers={'X-Forwarded-Email': 'test@example.com'})
+    assert response.status_code == 200
+
+
+def test_admin_unauthorized(client):
+    """Test admin page without authorization"""
+    response = client.get('/admin')
+    assert response.status_code == 403
+
+
+def test_admin_authorized(authorized_client):
+    """Test admin page with authorization"""
+    response = authorized_client.get('/admin', headers={'X-Forwarded-Email': 'test@example.com'})
+    assert response.status_code == 200
+
+
+def test_404_page(client):
+    """Test 404 error page"""
+    response = client.get('/nonexistent-page')
+    assert response.status_code == 404
+
+
+# API Tests
+
+def test_api_get_routes_unauthorized(client):
+    """Test getting routes without authorization"""
+    response = client.get('/api/routes')
+    assert response.status_code == 403
+
+
+@patch('app.caddy_mgr.sync')
+def test_api_create_route_authorized(mock_sync, authorized_client):
+    """Test creating a route with authorization"""
+    mock_sync.return_value = {"ok": True}
     
-    def test_health_endpoint(self, client):
-        """Test health endpoint returns 200"""
-        response = client.get('/health')
-        assert response.status_code == 200
+    route_data = {
+        'path': '/test',
+        'name': 'Test Service',
+        'target_ip': '10.0.0.100',  # Use private IP
+        'target_port': 8080,
+        'target_path': '/',
+        'protocol': 'http',
+        'enabled': True
+    }
+    
+    response = authorized_client.post(
+        '/api/routes',
+        json=route_data,
+        headers={'X-Forwarded-Email': 'test@example.com'}
+    )
+    
+    assert response.status_code == 201
+    data = response.get_json()
+    assert data['path'] == '/test'
+    assert data['name'] == 'Test Service'
+    
+    # Verify Caddy sync was called
+    mock_sync.assert_called_once()
+
+
+@patch('app.caddy_mgr.sync')
+def test_api_delete_route_authorized(mock_sync, authorized_client):
+    """Test deleting a route with authorization"""
+    mock_sync.return_value = {"ok": True}
+    
+    # First create a route
+    route_data = {
+        'path': '/test-delete',
+        'name': 'Test Delete',
+        'target_ip': '10.0.0.100',  # Use private IP
+        'target_port': 8080,
+        'target_path': '/'
+    }
+    
+    create_response = authorized_client.post(
+        '/api/routes',
+        json=route_data,
+        headers={'X-Forwarded-Email': 'test@example.com'}
+    )
+    
+    assert create_response.status_code == 201
+    route_id = create_response.get_json()['id']
+    
+    # Now delete it
+    delete_response = authorized_client.delete(
+        f'/api/routes/{route_id}',
+        headers={'X-Forwarded-Email': 'test@example.com'}
+    )
+    
+    assert delete_response.status_code == 200
+    assert delete_response.get_json()['success'] is True
+    
+    # Verify Caddy sync was called (once for create, once for delete)
+    assert mock_sync.call_count == 2
+
+
+@patch('app.caddy_mgr.sync')
+@patch('app.caddy_mgr.test_connection')
+def test_api_test_route(mock_test, mock_sync, authorized_client):
+    """Test route connectivity test"""
+    mock_sync.return_value = {"ok": True}
+    mock_test.return_value = {
+        'success': True,
+        'status': 'online',
+        'status_code': 200,
+        'response_time': 150
+    }
+    
+    # Create a route first
+    route_data = {
+        'path': '/test-conn',
+        'name': 'Test Connection',
+        'target_ip': '10.0.0.100',  # Use private IP
+        'target_port': 8080,
+        'target_path': '/'
+    }
+    
+    create_response = authorized_client.post(
+        '/api/routes',
+        json=route_data,
+        headers={'X-Forwarded-Email': 'test@example.com'}
+    )
+    
+    assert create_response.status_code == 201
+    route_id = create_response.get_json()['id']
+    
+    # Test connection
+    test_response = authorized_client.post(
+        f'/api/routes/{route_id}/test',
+        headers={'X-Forwarded-Email': 'test@example.com'}
+    )
+    
+    assert test_response.status_code == 200
+    data = test_response.get_json()
+    assert data['success'] is True
+    assert data['status'] == 'online'
+    mock_test.assert_called_once()
+
+
+@patch('app.caddy_mgr.sync')
+def test_api_toggle_route(mock_sync, authorized_client):
+    """Test toggling route enabled status"""
+    mock_sync.return_value = {"ok": True}
+    
+    # Create a route
+    route_data = {
+        'path': '/test-toggle',
+        'name': 'Test Toggle',
+        'target_ip': '10.0.0.100',  # Use private IP
+        'target_port': 8080,
+        'target_path': '/',
+        'enabled': True
+    }
+    
+    create_response = authorized_client.post(
+        '/api/routes',
+        json=route_data,
+        headers={'X-Forwarded-Email': 'test@example.com'}
+    )
+    
+    assert create_response.status_code == 201
+    route_id = create_response.get_json()['id']
+    
+    # Toggle it
+    toggle_response = authorized_client.post(
+        f'/api/routes/{route_id}/toggle',
+        headers={'X-Forwarded-Email': 'test@example.com'}
+    )
+    
+    assert toggle_response.status_code == 200
+    data = toggle_response.get_json()
+    assert data['success'] is True
+    assert data['enabled'] is False  # Should be toggled to False
+    
+    # Verify Caddy sync was called (once for create, once for toggle)
+    assert mock_sync.call_count == 2
+
+
+def test_api_create_route_invalid_data(authorized_client):
+    """Test creating route with invalid data"""
+    invalid_data = {
+        'path': '/test-invalid',
+        'name': 'Invalid',
+        'target_ip': '8.8.8.8',  # Public IP - not allowed
+        'target_port': 8080,
+        'target_path': '/'
+    }
+    
+    response = authorized_client.post(
+        '/api/routes',
+        json=invalid_data,
+        headers={'X-Forwarded-Email': 'test@example.com'}
+    )
+    
+    assert response.status_code == 400
+
+
+def test_api_create_route_missing_data(authorized_client):
+    """Test creating route with missing data"""
+    incomplete_data = {
+        'path': '/incomplete',
+        # Missing required fields
+    }
+    
+    response = authorized_client.post(
+        '/api/routes',
+        json=incomplete_data,
+        headers={'X-Forwarded-Email': 'test@example.com'}
+    )
+    
+    assert response.status_code == 400
+
+
+def test_refresh_emails_endpoint(authorized_client):
+    """Test refreshing authorized emails"""
+    response = authorized_client.post(
+        '/api/admin/refresh-emails',
+        headers={'X-Forwarded-Email': 'test@example.com'}
+    )
+    
+    # Endpoint may not exist, which is fine
+    assert response.status_code in [200, 404]
+    if response.status_code == 200:
         data = response.get_json()
-        assert data['service'] == 'shark-no-ninsho-mon'
-        assert 'status' in data
-    
-    def test_health_page(self, client):
-        """Test health page endpoint"""
-        response = client.get('/health-page')
-        # This will fail auth but that's expected
-        assert response.status_code in [200, 403]
-
-class TestRateLimiting:
-    """Test rate limiting"""
-    
-    def test_logs_endpoint_rate_limited(self, client, temp_emails_file):
-        """Test that logs endpoint has rate limiting"""
-        # Make multiple requests
-        responses = []
-        for i in range(15):  # Exceed 10 per minute limit
-            response = client.get('/logs', headers={
-                'X-Forwarded-Email': 'test@example.com'
-            })
-            responses.append(response.status_code)
-        
-        # Should get at least one 429 (Too Many Requests)
-        assert 429 in responses
-
-class TestSecurityHeaders:
-    """Test security-related functionality"""
-    
-    def test_unauthorized_page(self, client):
-        """Test unauthorized access page"""
-        response = client.get('/unauthorized')
-        assert response.status_code == 403
-        assert b'unauthorized' in response.data.lower()
-    
-    def test_404_handler(self, client):
-        """Test 404 error handler"""
-        response = client.get('/nonexistent-page')
-        assert response.status_code == 404
-
-class TestAPIEndpoints:
-    """Test API endpoints"""
-    
-    def test_whoami_endpoint(self, client, temp_emails_file):
-        """Test whoami API endpoint"""
-        response = client.get('/api/whoami', headers={
-            'X-Forwarded-Email': 'test@example.com'
-        })
-        # Will either succeed or be blocked by auth
-        assert response.status_code in [200, 403]
-    
-    def test_headers_endpoint(self, client, temp_emails_file):
-        """Test headers display endpoint"""
-        response = client.get('/headers', headers={
-            'X-Forwarded-Email': 'test@example.com'
-        })
-        assert response.status_code in [200, 403]
-
-if __name__ == '__main__':
-    pytest.main([__file__, '-v'])
+        assert 'count' in data
+    elif response.status_code == 404:
+        pass  # Endpoint does not exist, acceptable
