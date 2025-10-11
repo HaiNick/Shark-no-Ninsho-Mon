@@ -172,6 +172,9 @@ class CaddyManager:
                         "/static/*",
                         "/health",
                         "/logs",
+                        "/route-disabled",
+                        "/unauthorized",
+                        "/emails",
                         "/favicon.ico",
                     ]
                 }
