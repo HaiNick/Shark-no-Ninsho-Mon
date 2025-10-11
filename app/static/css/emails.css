@@ -3,7 +3,9 @@
    ============================================================================ */
 
 .emails-container {
-    max-width: 1400px;
+    max-width: 100%;
+    width: 100%;
+    padding: 0 2rem;
 }
 
 .emails-header {
@@ -563,6 +565,37 @@ form {
 /* ============================================================================
    Email-Specific Styles
    ============================================================================ */
+
+/* Email Table Specific Styling */
+.emails-table {
+    width: 100%;
+    table-layout: fixed;
+}
+
+.emails-table th:nth-child(1),
+.emails-table td:nth-child(1) {
+    width: 40%;  /* Email Address - widest */
+    padding: 1.25rem 1.5rem;
+}
+
+.emails-table th:nth-child(2),
+.emails-table td:nth-child(2) {
+    width: 20%;  /* Status */
+    padding: 1.25rem 1.5rem;
+}
+
+.emails-table th:nth-child(3),
+.emails-table td:nth-child(3) {
+    width: 25%;  /* Added */
+    padding: 1.25rem 1.5rem;
+}
+
+.emails-table th:nth-child(4),
+.emails-table td:nth-child(4) {
+    width: 15%;  /* Actions */
+    padding: 1.25rem 1.5rem;
+    text-align: center;
+}
 
 /* Email Status Badges */
 .email-status {
