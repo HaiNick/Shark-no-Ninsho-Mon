@@ -106,12 +106,18 @@ class CaddyManager:
 
             log.info("Processing route: path=%s, enabled=%s", mount, enabled)
 
-            if not enabled:
-                log.info("Skipping disabled route: %s", mount)
-                continue
-
             if not mount or not isinstance(mount, str) or not mount.startswith("/"):
                 log.warning("Skipping invalid route path: %s", mount)
+                continue
+
+            if not enabled:
+                # Add a redirect to the route-disabled page for disabled routes
+                route_name = r.get("name", "")
+                log.info("Adding disabled route redirect: %s -> /route-disabled", mount)
+                server["routes"].append(
+                    self._disabled_route_redirect(mount, route_name)
+                )
+                backend_routes_added += 1
                 continue
 
             target_ip = r["target_ip"]
@@ -194,6 +200,32 @@ class CaddyManager:
                 }
             ],
             "terminal": False,
+        }
+
+    def _disabled_route_redirect(self, mount: str, route_name: str = "") -> dict:
+        """
+        Create a redirect handler for disabled routes.
+        Redirects users to the route-disabled page with path and name parameters.
+        """
+        from urllib.parse import quote
+        
+        # URL encode the parameters
+        encoded_path = quote(mount, safe='')
+        encoded_name = quote(route_name, safe='')
+        redirect_url = f"/route-disabled?path={encoded_path}&name={encoded_name}"
+        
+        return {
+            "match": [{"path": [mount, f"{mount}/*"]}],
+            "handle": [
+                {
+                    "handler": "static_response",
+                    "status_code": 302,
+                    "headers": {
+                        "Location": [redirect_url]
+                    }
+                }
+            ],
+            "terminal": True,
         }
 
     def _subdir_reverse_proxy_route(
