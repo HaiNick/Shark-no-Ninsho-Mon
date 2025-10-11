@@ -32,6 +32,7 @@ class Settings:
 def get_settings() -> Settings:
     """Return cached settings sourced from environment variables."""
     base_dir = Path(__file__).resolve().parent
+    root_dir = base_dir.parent  # Project root directory
     env = os.environ
 
     secret_key = env.get("SECRET_KEY", "dev-secret-key-change-in-production")
@@ -39,7 +40,7 @@ def get_settings() -> Settings:
     default_routes_path = base_dir / "routes.json"
     routes_db_path = env.get("ROUTES_DB_PATH", str(default_routes_path))
 
-    default_emails_path = base_dir / "emails.txt"
+    default_emails_path = root_dir / "emails.txt"
     emails_file = env.get("EMAILS_FILE", str(default_emails_path))
 
     health_check_enabled = _to_bool(env.get("HEALTH_CHECK_ENABLED"), default=True)

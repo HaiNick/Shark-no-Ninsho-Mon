@@ -4,11 +4,11 @@
     ports:
       - "8000:8000"         # Expose to LAN for direct access
     volumes:
-      - ./emails.txt:/app/emails.txt:ro
+      - ./emails.txt:/emails.txt:ro
       - ./routes.json:/app/routes.json  # Persist route configuration
     environment:
       - FLASK_ENV=production
-      - EMAILS_FILE_PATH=/app/emails.txt
+      - EMAILS_FILE=/emails.txt
       # Prefer stdout logging; Docker will capture it
       # - LOG_FILE_PATH=/app/access.log
     healthcheck:
