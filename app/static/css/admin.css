@@ -180,6 +180,7 @@
     width: 6px;
     height: 6px;
     border-radius: 50%;
+    background: currentColor;
 }
 
 /* Route Path */
@@ -544,96 +545,4 @@ form {
         right: 1rem;
         min-width: auto;
     }
-}
-
-/* ============================================================================
-   Email Management Styles
-   ============================================================================ */
-.emails-info {
-    margin-bottom: 1.5rem;
-}
-
-.email-stats {
-    margin-top: 1rem;
-    padding: 1rem;
-    background: rgba(98, 114, 164, 0.1);
-    border-radius: 8px;
-    border: 1px solid rgba(98, 114, 164, 0.2);
-}
-
-.emails-table {
-    width: 100%;
-    border-collapse: collapse;
-    margin-top: 1rem;
-}
-
-.emails-table th,
-.emails-table td {
-    padding: 1rem;
-    text-align: left;
-    border-bottom: 1px solid var(--current-line);
-}
-
-.emails-table th {
-    background: var(--current-line);
-    font-weight: 600;
-    color: var(--purple);
-    text-transform: uppercase;
-    font-size: 0.8rem;
-    letter-spacing: 1px;
-}
-
-.emails-table tbody tr {
-    transition: background-color 0.2s ease;
-}
-
-.emails-table tbody tr:hover {
-    background: rgba(189, 147, 249, 0.05);
-}
-
-.email-status {
-    display: inline-flex;
-    align-items: center;
-    gap: 0.5rem;
-    padding: 0.25rem 0.75rem;
-    border-radius: 20px;
-    font-size: 0.8rem;
-    font-weight: 500;
-}
-
-.email-status.active {
-    background: rgba(80, 250, 123, 0.1);
-    color: var(--green);
-    border: 1px solid rgba(80, 250, 123, 0.3);
-}
-
-.email-status.current {
-    background: rgba(139, 233, 253, 0.1);
-    color: var(--cyan);
-    border: 1px solid rgba(139, 233, 253, 0.3);
-}
-
-.email-actions {
-    display: flex;
-    gap: 0.5rem;
-    align-items: center;
-}
-
-.btn-remove {
-    background: linear-gradient(135deg, var(--red) 0%, #dc2626 100%);
-    color: white;
-    border: none;
-    padding: 0.4rem 0.8rem;
-    border-radius: 6px;
-    font-size: 0.8rem;
-    cursor: pointer;
-    transition: all 0.2s ease;
-    display: flex;
-    align-items: center;
-    gap: 0.4rem;
-}
-
-.btn-remove:hover {
-    background: linear-gradient(135deg, #dc2626 0%, #b91c1c 100%);
-    transform: translateY(-1px);
 }

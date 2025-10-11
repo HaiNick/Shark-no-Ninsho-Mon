@@ -1,0 +1,244 @@
+{% extends "base.html" %}
+
+{% block title %}Route Disabled - Shark-no-Ninsho-Mon{% endblock %}
+
+{% block extra_css %}
+<style>
+.disabled-container {
+    max-width: 600px;
+    margin: 0 auto;
+    text-align: center;
+    padding: 2rem;
+}
+
+.disabled-icon {
+    width: 120px;
+    height: 120px;
+    margin: 0 auto 2rem;
+    background: linear-gradient(135deg, #f56565 0%, #c53030 100%);
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    animation: pulse 2s infinite;
+}
+
+.disabled-icon img {
+    width: 60px;
+    height: 60px;
+    filter: brightness(0) invert(1);
+}
+
+@keyframes pulse {
+    0% { transform: scale(1); }
+    50% { transform: scale(1.05); }
+    100% { transform: scale(1); }
+}
+
+.disabled-title {
+    font-size: 3rem;
+    font-weight: 700;
+    margin-bottom: 1rem;
+    background: linear-gradient(135deg, #f56565 0%, #c53030 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+}
+
+.disabled-subtitle {
+    font-size: 1.2rem;
+    color: var(--comment);
+    margin-bottom: 2rem;
+    line-height: 1.6;
+}
+
+.route-info {
+    background: rgba(245, 101, 101, 0.1);
+    border: 1px solid rgba(245, 101, 101, 0.3);
+    border-radius: 12px;
+    padding: 1.5rem;
+    margin: 2rem 0;
+}
+
+.route-path {
+    font-family: 'Courier New', monospace;
+    font-size: 1.5rem;
+    font-weight: 600;
+    color: #f56565;
+    margin-bottom: 0.5rem;
+}
+
+.route-name {
+    color: var(--foreground);
+    font-size: 1.1rem;
+    margin-bottom: 1rem;
+}
+
+.route-status {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.5rem 1rem;
+    background: rgba(245, 101, 101, 0.2);
+    border-radius: 20px;
+    font-weight: 600;
+    color: #f56565;
+    font-size: 0.9rem;
+}
+
+.status-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: #f56565;
+}
+
+.action-buttons {
+    display: flex;
+    gap: 1rem;
+    justify-content: center;
+    margin-top: 2rem;
+}
+
+.btn-back {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    padding: 1rem 2rem;
+    border: none;
+    border-radius: 12px;
+    font-size: 1.1rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    text-decoration: none;
+}
+
+.btn-back:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 10px 25px rgba(102, 126, 234, 0.3);
+}
+
+.btn-dashboard {
+    background: rgba(255, 255, 255, 0.1);
+    color: var(--foreground);
+    padding: 1rem 2rem;
+    border: 2px solid rgba(255, 255, 255, 0.2);
+    border-radius: 12px;
+    font-size: 1.1rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    text-decoration: none;
+}
+
+.btn-dashboard:hover {
+    background: rgba(255, 255, 255, 0.2);
+    border-color: rgba(255, 255, 255, 0.4);
+    transform: translateY(-2px);
+}
+
+.additional-info {
+    margin-top: 3rem;
+    padding: 1.5rem;
+    background: rgba(255, 255, 255, 0.05);
+    border-radius: 12px;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.additional-info h3 {
+    margin-bottom: 1rem;
+    color: var(--cyan);
+}
+
+.additional-info p {
+    color: var(--comment);
+    line-height: 1.6;
+    margin-bottom: 0.5rem;
+}
+
+@media (max-width: 768px) {
+    .disabled-title {
+        font-size: 2rem;
+    }
+    
+    .action-buttons {
+        flex-direction: column;
+        align-items: center;
+    }
+    
+    .btn-back,
+    .btn-dashboard {
+        width: 100%;
+        justify-content: center;
+    }
+    
+    .action-buttons {
+        gap: 0.5rem;
+    }
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container disabled-container">
+    <div class="disabled-icon">
+        <img src="{{ url_for('static', filename='icons/block.svg') }}" alt="Route Disabled" aria-hidden="true">
+    </div>
+    
+    <h1 class="disabled-title">Route Disabled</h1>
+    <p class="disabled-subtitle">
+        The route you're trying to access has been temporarily disabled by an administrator.
+    </p>
+    
+    <div class="route-info">
+        <div class="route-path">{{ route_path }}</div>
+        {% if route_name %}
+        <div class="route-name">{{ route_name }}</div>
+        {% endif %}
+        <div class="route-status">
+            <span class="status-dot"></span>
+            Route Disabled
+        </div>
+    </div>
+    
+    <div class="action-buttons">
+        <button class="btn-back" onclick="goBack()">
+            <img src="{{ url_for('static', filename='icons/arrow_outward.svg') }}" alt="" style="width: 20px; height: 20px; transform: rotate(180deg);" aria-hidden="true">
+            Go Back
+        </button>
+        <a href="/" class="btn-dashboard">
+            <img src="{{ url_for('static', filename='icons/alt_route.svg') }}" alt="" style="width: 20px; height: 20px;" aria-hidden="true">
+            Dashboard
+        </a>
+        <a href="/admin" class="btn-dashboard">
+            <img src="{{ url_for('static', filename='icons/task_alt.svg') }}" alt="" style="width: 20px; height: 20px;" aria-hidden="true">
+            Manage Routes
+        </a>
+    </div>
+    
+    <div class="additional-info">
+        <h3>What does this mean?</h3>
+        <p>• The service behind this route may be temporarily unavailable</p>
+        <p>• An administrator has disabled this route for maintenance</p>
+        <p>• The route configuration may be under review</p>
+        <p>• Contact your administrator if you need immediate access</p>
+    </div>
+</div>
+
+<script>
+function goBack() {
+    // Try to go back in history, fallback to dashboard
+    if (window.history.length > 1) {
+        window.history.back();
+    } else {
+        window.location.href = '/';
+    }
+}
+</script>
+{% endblock %}

@@ -240,14 +240,17 @@ body {
     background: rgba(255, 255, 255, 0.95);
     backdrop-filter: blur(10px);
     border-radius: 12px;
-    padding: 1.5rem;
     border: 2px solid var(--border-color);
-    text-decoration: none;
-    color: var(--text-primary);
     transition: all 0.3s ease;
+}
+
+.service-link {
     display: flex;
     flex-direction: column;
     gap: 1rem;
+    padding: 1.5rem;
+    text-decoration: none;
+    color: var(--text-primary);
 }
 
 [data-theme="dark"] .service-card {
@@ -299,6 +302,35 @@ body {
 .status-offline .status-dot { background: var(--status-offline); }
 .status-slow .status-dot { background: var(--status-slow); }
 .status-unknown .status-dot { background: var(--status-unknown); }
+.status-disabled .status-dot { background: #6b7280; }
+
+/* Service Card Disabled State */
+.service-card.service-disabled {
+    opacity: 0.6;
+    background: rgba(107, 114, 128, 0.1);
+    border-color: rgba(107, 114, 128, 0.3);
+}
+
+.service-card.service-disabled:hover {
+    transform: none;
+    box-shadow: 0 4px 12px rgba(107, 114, 128, 0.2);
+}
+
+.service-card.service-disabled .service-icon {
+    background: rgba(107, 114, 128, 0.2);
+}
+
+.service-card.service-disabled h3 small {
+    color: #6b7280;
+    font-weight: normal;
+    font-size: 0.8rem;
+}
+
+.status-disabled {
+    background: rgba(107, 114, 128, 0.1);
+    color: #6b7280;
+    border: 1px solid rgba(107, 114, 128, 0.3);
+}
 
 /* ============================================================================
    Empty State

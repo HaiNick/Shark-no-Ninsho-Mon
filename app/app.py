@@ -147,8 +147,8 @@ def index():
         logger.warning(f"UNAUTHORIZED ACCESS - Email: {email} | Authorized emails: {len(AUTHORIZED_EMAILS)} | IP: {request.remote_addr}")
         return render_template('unauthorized.html', email=email), 403
     
-    # Get enabled routes to display on dashboard
-    routes = route_manager.get_all_routes(enabled_only=True)
+    # Get all routes (both enabled and disabled) to display on dashboard
+    routes = route_manager.get_all_routes(enabled_only=False)
     
     logger.info(f"ACCESS - User: {email} | Path: / | IP: {request.remote_addr}")
     
@@ -196,6 +196,38 @@ def logs():
     logger.info(f"ACCESS - User: {email} | Path: /logs | IP: {request.remote_addr}")
     
     return render_template('logs.html', email=email)
+
+
+@app.route('/emails')
+def emails():
+    """Email management page"""
+    email = get_user_email()
+    
+    if not is_authorized():
+        return render_template('unauthorized.html', email=email), 403
+    
+    logger.info(f"ACCESS - User: {email} | Path: /emails | IP: {request.remote_addr}")
+    
+    return render_template('emails.html', email=email)
+
+
+@app.route('/route-disabled')
+def route_disabled():
+    """Route disabled page"""
+    email = get_user_email()
+    
+    if not is_authorized():
+        return render_template('unauthorized.html', email=email), 403
+    
+    route_path = request.args.get('path', 'Unknown Route')
+    route_name = request.args.get('name', '')
+    
+    logger.info(f"ROUTE_DISABLED - User: {email} | Path: {route_path} | IP: {request.remote_addr}")
+    
+    return render_template('route_disabled.html', 
+                         email=email, 
+                         route_path=route_path, 
+                         route_name=route_name)
 
 
 @app.route('/api/logs', methods=['GET'])
@@ -622,6 +654,84 @@ def api_refresh_emails():
     except Exception as e:
         logger.error(f"EMAIL_REFRESH_ERROR - User: {email} | Error: {str(e)}")
         return jsonify({'error': 'Failed to refresh emails'}), 500
+
+
+@app.route('/api/route-status/<path:route_path>', methods=['GET'])
+@limiter.exempt
+def api_check_route_status(route_path):
+    """API endpoint to check if a route is enabled (for Caddy to use)"""
+    # Add leading slash if not present
+    if not route_path.startswith('/'):
+        route_path = '/' + route_path
+    
+    # Check if this route exists and is enabled
+    routes = route_manager.get_all_routes()
+    matching_route = None
+    
+    for route in routes:
+        if route['path'] == route_path or route['path'].rstrip('/') == route_path.rstrip('/'):
+            matching_route = route
+            break
+    
+    if matching_route:
+        enabled = matching_route.get('enabled', True)
+        return jsonify({
+            'path': route_path,
+            'enabled': enabled,
+            'name': matching_route.get('name', ''),
+            'status': matching_route.get('status', 'unknown')
+        })
+    else:
+        return jsonify({
+            'path': route_path,
+            'enabled': False,
+            'error': 'Route not found'
+        }), 404
+
+
+# ============================================================================
+# ROUTE INTERCEPTION FOR DISABLED ROUTES
+# ============================================================================
+
+@app.route('/<path:route_path>')
+def check_route_status(route_path):
+    """Check if a route is disabled and redirect accordingly"""
+    email = get_user_email()
+    
+    if not is_authorized():
+        return render_template('unauthorized.html', email=email), 403
+    
+    # Add leading slash if not present
+    if not route_path.startswith('/'):
+        route_path = '/' + route_path
+    
+    # Check if this route exists in our database
+    routes = route_manager.get_all_routes()
+    matching_route = None
+    
+    for route in routes:
+        if route['path'] == route_path or route['path'].rstrip('/') == route_path.rstrip('/'):
+            matching_route = route
+            break
+    
+    if matching_route:
+        # Check if route is disabled
+        if not matching_route.get('enabled', True):
+            logger.info(f"ROUTE_DISABLED_ACCESS - User: {email} | Path: {route_path} | Route: {matching_route['name']} | IP: {request.remote_addr}")
+            return render_template('route_disabled.html', 
+                                 email=email, 
+                                 route_path=route_path, 
+                                 route_name=matching_route.get('name', ''))
+        else:
+            # Route is enabled, let Caddy handle it (this shouldn't normally be reached in production)
+            logger.info(f"ROUTE_ENABLED_ACCESS - User: {email} | Path: {route_path} | Route: {matching_route['name']} | IP: {request.remote_addr}")
+            # In production, this would be handled by Caddy proxy
+            # For development, we can show a message or redirect
+            return f"Route {route_path} is enabled and should be handled by the reverse proxy.", 200
+    else:
+        # Route not found in our system, return 404
+        logger.warning(f"ROUTE_NOT_FOUND - User: {email} | Path: {route_path} | IP: {request.remote_addr}")
+        return render_template('404.html', path=route_path), 404
 
 
 # ============================================================================

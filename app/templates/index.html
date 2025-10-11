@@ -69,27 +69,39 @@
         <div id="services-grid" class="services-grid">
             {% if routes %}
                 {% for route in routes %}
-                <a href="{{ route.path }}" class="service-card" data-status="{{ route.status }}">
-                    <div class="service-icon">
-                        <img src="{{ url_for('static', filename='icons/arrow_outward.svg') }}" alt="" aria-hidden="true" style="width: 40px; height: 40px;">
-                    </div>
-                    <div class="service-info">
-                        <h3>{{ route.name }}</h3>
-                        <p class="service-path">{{ route.path }}</p>
-                        <p class="service-target">{{ route.target_ip }}:{{ route.target_port }}</p>
-                    </div>
-                    <div class="service-status status-{{ route.status }}">
-                        {% if route.status == 'online' %}
-                            <span class="status-dot"></span> Online
-                        {% elif route.status == 'slow' %}
-                            <span class="status-dot"></span> Slow
-                        {% elif route.status == 'offline' %}
-                            <span class="status-dot"></span> Offline
-                        {% else %}
-                            <span class="status-dot"></span> Unknown
-                        {% endif %}
-                    </div>
-                </a>
+                <div class="service-card {% if not route.enabled %}service-disabled{% endif %}" data-status="{{ route.status }}">
+                    {% if route.enabled %}
+                        <a href="{{ route.path }}" class="service-link">
+                    {% else %}
+                        <a href="/route-disabled?path={{ route.path|urlencode }}&name={{ route.name|urlencode }}" class="service-link">
+                    {% endif %}
+                        <div class="service-icon">
+                            {% if route.enabled %}
+                                <img src="{{ url_for('static', filename='icons/arrow_outward.svg') }}" alt="" aria-hidden="true" style="width: 40px; height: 40px;">
+                            {% else %}
+                                <img src="{{ url_for('static', filename='icons/block.svg') }}" alt="" aria-hidden="true" style="width: 40px; height: 40px;">
+                            {% endif %}
+                        </div>
+                        <div class="service-info">
+                            <h3>{{ route.name }}{% if not route.enabled %} <small>(Disabled)</small>{% endif %}</h3>
+                            <p class="service-path">{{ route.path }}</p>
+                            <p class="service-target">{{ route.target_ip }}:{{ route.target_port }}</p>
+                        </div>
+                        <div class="service-status {% if not route.enabled %}status-disabled{% else %}status-{{ route.status }}{% endif %}">
+                            {% if not route.enabled %}
+                                <span class="status-dot"></span> Disabled
+                            {% elif route.status == 'online' %}
+                                <span class="status-dot"></span> Online
+                            {% elif route.status == 'slow' %}
+                                <span class="status-dot"></span> Slow
+                            {% elif route.status == 'offline' %}
+                                <span class="status-dot"></span> Offline
+                            {% else %}
+                                <span class="status-dot"></span> Unknown
+                            {% endif %}
+                        </div>
+                    </a>
+                </div>
                 {% endfor %}
             {% else %}
                 <div class="empty-state">
@@ -106,6 +118,12 @@
     <div class="card">
         <h2>Quick Links</h2>
         <div class="quick-links">
+            <a href="/emails" class="quick-link">
+                <span class="link-icon">
+                    <img src="{{ url_for('static', filename='icons/account_circle.svg') }}" alt="" aria-hidden="true">
+                </span>
+                <span>Email Management</span>
+            </a>
             <a href="/logs" class="quick-link">
                 <span class="link-icon">
                     <img src="{{ url_for('static', filename='icons/article.svg') }}" alt="" aria-hidden="true">

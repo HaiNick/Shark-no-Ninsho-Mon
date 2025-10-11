@@ -1,0 +1,272 @@
+/* ============================================================================
+   Email Management Page Specific Styles
+   ============================================================================ */
+
+.emails-container {
+    max-width: 1400px;
+}
+
+.emails-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: 2rem;
+}
+
+.emails-header h1 {
+    font-size: 2.5rem;
+    margin-bottom: 0.5rem;
+}
+
+/* ============================================================================
+   Stats Grid
+   ============================================================================ */
+.stats-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+    gap: 1.5rem;
+    margin-bottom: 2rem;
+}
+
+.stat-card {
+    background: var(--current-line);
+    backdrop-filter: blur(10px);
+    border-radius: 16px;
+    padding: 1.5rem;
+    border: 2px solid var(--purple);
+    display: flex;
+    align-items: center;
+    gap: 1.5rem;
+    transition: all 0.3s ease;
+}
+
+.stat-card:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 10px 25px rgba(189, 147, 249, 0.3);
+    border-color: var(--pink);
+}
+
+.stat-icon {
+    width: 60px;
+    height: 60px;
+    border-radius: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+}
+
+.stat-info {
+    flex: 1;
+}
+
+.stat-value {
+    font-size: 2rem;
+    font-weight: 700;
+    color: var(--foreground);
+    margin-bottom: 0.25rem;
+    word-break: break-all;
+}
+
+.stat-label {
+    font-size: 0.9rem;
+    color: var(--comment);
+    text-transform: uppercase;
+    letter-spacing: 1px;
+}
+
+/* ============================================================================
+   Table Styles
+   ============================================================================ */
+.table-container {
+    background: var(--current-line);
+    border-radius: 12px;
+    overflow: hidden;
+    border: 1px solid rgba(189, 147, 249, 0.2);
+}
+
+.emails-table {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+.emails-table th,
+.emails-table td {
+    padding: 1rem;
+    text-align: left;
+    border-bottom: 1px solid rgba(189, 147, 249, 0.1);
+}
+
+.emails-table th {
+    background: rgba(189, 147, 249, 0.1);
+    font-weight: 600;
+    color: var(--purple);
+    text-transform: uppercase;
+    font-size: 0.8rem;
+    letter-spacing: 1px;
+}
+
+.emails-table tbody tr {
+    transition: background-color 0.2s ease;
+}
+
+.emails-table tbody tr:hover {
+    background: rgba(189, 147, 249, 0.05);
+}
+
+.emails-table tbody tr:last-child td {
+    border-bottom: none;
+}
+
+/* ============================================================================
+   Email Status Styles
+   ============================================================================ */
+.email-status {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.25rem 0.75rem;
+    border-radius: 20px;
+    font-size: 0.8rem;
+    font-weight: 500;
+}
+
+.email-status.active {
+    background: rgba(80, 250, 123, 0.1);
+    color: var(--green);
+    border: 1px solid rgba(80, 250, 123, 0.3);
+}
+
+.email-status.current {
+    background: rgba(139, 233, 253, 0.1);
+    color: var(--cyan);
+    border: 1px solid rgba(139, 233, 253, 0.3);
+}
+
+.status-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: currentColor;
+}
+
+/* ============================================================================
+   Email Actions
+   ============================================================================ */
+.email-actions {
+    display: flex;
+    gap: 0.5rem;
+    align-items: center;
+}
+
+.btn-remove {
+    background: linear-gradient(135deg, var(--red) 0%, #dc2626 100%);
+    color: white;
+    border: none;
+    padding: 0.4rem 0.8rem;
+    border-radius: 6px;
+    font-size: 0.8rem;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+}
+
+.btn-remove:hover {
+    background: linear-gradient(135deg, #dc2626 0%, #b91c1c 100%);
+    transform: translateY(-1px);
+}
+
+/* ============================================================================
+   Search Box
+   ============================================================================ */
+.search-box {
+    position: relative;
+    display: flex;
+    align-items: center;
+}
+
+.search-box input {
+    background: var(--current-line);
+    border: 1px solid rgba(189, 147, 249, 0.2);
+    border-radius: 8px;
+    padding: 0.5rem 1rem 0.5rem 3rem;
+    color: var(--foreground);
+    font-size: 0.9rem;
+    width: 250px;
+    transition: border-color 0.2s ease;
+}
+
+.search-box input:focus {
+    outline: none;
+    border-color: var(--purple);
+}
+
+.search-box input::placeholder {
+    color: var(--comment);
+}
+
+/* ============================================================================
+   Text Utilities
+   ============================================================================ */
+.text-muted {
+    color: var(--comment);
+    font-size: 0.9rem;
+}
+
+/* ============================================================================
+   Loading States
+   ============================================================================ */
+.loading {
+    text-align: center;
+    padding: 2rem;
+    color: var(--comment);
+}
+
+.loading div {
+    margin-bottom: 0.5rem;
+}
+
+.loading small {
+    font-size: 0.8rem;
+    opacity: 0.7;
+}
+
+/* ============================================================================
+   Responsive Design
+   ============================================================================ */
+@media (max-width: 768px) {
+    .emails-header {
+        flex-direction: column;
+        gap: 1rem;
+        align-items: stretch;
+    }
+    
+    .stats-grid {
+        grid-template-columns: 1fr;
+    }
+    
+    .table-actions {
+        flex-direction: column;
+        gap: 1rem;
+        align-items: stretch;
+    }
+    
+    .search-box input {
+        width: 100%;
+    }
+    
+    .emails-table {
+        font-size: 0.9rem;
+    }
+    
+    .emails-table th,
+    .emails-table td {
+        padding: 0.75rem 0.5rem;
+    }
+    
+    .stat-value {
+        font-size: 1.5rem;
+    }
+}

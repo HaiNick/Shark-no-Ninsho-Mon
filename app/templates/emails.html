@@ -1,0 +1,158 @@
+{% extends "base.html" %}
+
+{% block title %}Email Management - Shark-no-Ninsho-Mon{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/emails.css') }}">
+<style>
+.icon {
+    width: 20px;
+    height: 20px;
+    display: inline-block;
+    vertical-align: middle;
+}
+
+.stat-icon .icon {
+    width: 28px;
+    height: 28px;
+}
+
+.spinner {
+    width: 20px;
+    height: 20px;
+    display: inline-block;
+    vertical-align: middle;
+}
+
+.spinner svg {
+    animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container emails-container">
+    <!-- Header -->
+    <div class="emails-header">
+        <div>
+            <h1>Email Management</h1>
+            <p class="subtitle">Manage authorized email addresses that can access this application</p>
+        </div>
+        <button class="btn btn-primary" onclick="showAddEmailModal()">
+            <img src="{{ url_for('static', filename='icons/add.svg') }}" alt="" class="icon" aria-hidden="true">
+            Add Email
+        </button>
+    </div>
+
+    <!-- Stats Cards -->
+    <div class="stats-grid" id="stats-grid">
+        <div class="stat-card">
+            <div class="stat-icon" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);">
+                <img src="{{ url_for('static', filename='icons/account_circle.svg') }}" alt="" class="icon" aria-hidden="true">
+            </div>
+            <div class="stat-info">
+                <div class="stat-value" id="stat-total">0</div>
+                <div class="stat-label">Total Emails</div>
+            </div>
+        </div>
+        
+        <div class="stat-card">
+            <div class="stat-icon" style="background: linear-gradient(135deg, #48bb78 0%, #38a169 100%);">
+                <img src="{{ url_for('static', filename='icons/check_circle.svg') }}" alt="" class="icon" aria-hidden="true">
+            </div>
+            <div class="stat-info">
+                <div class="stat-value" id="stat-active">0</div>
+                <div class="stat-label">Active Users</div>
+            </div>
+        </div>
+        
+        <div class="stat-card">
+            <div class="stat-icon" style="background: linear-gradient(135deg, #ed8936 0%, #dd6b20 100%);">
+                <img src="{{ url_for('static', filename='icons/monitor_heart.svg') }}" alt="" class="icon" aria-hidden="true">
+            </div>
+            <div class="stat-info">
+                <div class="stat-value" id="stat-current">{{ email }}</div>
+                <div class="stat-label">Current User</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Emails Table -->
+    <div class="card">
+        <div class="card-header">
+            <h2>Authorized Emails</h2>
+            <div class="table-actions">
+                <div class="search-box">
+                    <img src="{{ url_for('static', filename='icons/search.svg') }}" alt="" class="icon" aria-hidden="true" style="position: absolute; left: 1rem;">
+                    <input type="text" id="search-input" placeholder="Search emails..." onkeyup="filterEmails()">
+                </div>
+                <button class="btn btn-secondary" onclick="refreshEmails()">
+                    <img src="{{ url_for('static', filename='icons/refresh.svg') }}" alt="" class="icon" aria-hidden="true">
+                    Refresh
+                </button>
+            </div>
+        </div>
+        
+        <div class="table-container">
+            <table class="emails-table" id="emails-table">
+                <thead>
+                    <tr>
+                        <th>Email Address</th>
+                        <th>Status</th>
+                        <th>Added</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody id="emails-tbody">
+                    <tr>
+                        <td colspan="4" class="loading">
+                            <span class="spinner">
+                                <img src="{{ url_for('static', filename='icons/progress_activity.svg') }}" alt="" aria-hidden="true">
+                            </span>
+                            Loading emails...
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<!-- Add Email Modal -->
+<div id="email-modal" class="modal">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h2>Add Authorized Email</h2>
+            <button class="modal-close" onclick="closeEmailModal()">&times;</button>
+        </div>
+        
+        <form id="email-form" onsubmit="handleEmailSubmit(event)">
+            <div class="form-group">
+                <label for="new-email">Email Address *</label>
+                <input type="email" id="new-email" name="email" placeholder="user@example.com" required>
+                <small>Enter a valid email address to grant access to the application.</small>
+            </div>
+            
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" onclick="closeEmailModal()">Cancel</button>
+                <button type="submit" class="btn btn-primary">
+                    <img src="{{ url_for('static', filename='icons/check.svg') }}" alt="" class="icon" aria-hidden="true">
+                    Add Email
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Toast Notification -->
+<div id="toast" class="toast"></div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="{{ url_for('static', filename='js/emails.js') }}"></script>
+{% endblock %}
