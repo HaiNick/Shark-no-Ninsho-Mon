@@ -157,23 +157,6 @@ body {
     color: var(--cyan);
 }
 
-.theme-toggle {
-    background: var(--gradient-primary);
-    border: none;
-    padding: 0.5rem 1rem;
-    border-radius: 8px;
-    cursor: pointer;
-    transition: transform 0.3s ease;
-}
-
-.theme-toggle:hover {
-    transform: scale(1.05);
-}
-
-.theme-icon {
-    font-size: 1.2rem;
-}
-
 /* ============================================================================
    Main Content
    ============================================================================ */

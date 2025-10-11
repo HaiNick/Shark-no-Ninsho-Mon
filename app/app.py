@@ -179,36 +179,10 @@ def health():
     })
 
 
-@app.route('/whoami')
-def whoami():
-    """Return user information"""
-    email = get_user_email()
-    
-    return jsonify({
-        'email': email,
-        'authorized': is_authorized(),
-        'ip': request.remote_addr,
-        'user_agent': request.headers.get('User-Agent', ''),
-        'request_url': request.url,
-        'request_host': request.host,
-        'x_forwarded_host': request.headers.get('X-Forwarded-Host', 'none'),
-        'x_forwarded_proto': request.headers.get('X-Forwarded-Proto', 'none')
-    })
 
 
-@app.route('/headers')
-def headers():
-    """Display all request headers"""
-    email = get_user_email()
-    
-    if not is_authorized():
-        return render_template('unauthorized.html', email=email), 403
-    
-    headers_dict = dict(request.headers)
-    
-    logger.info(f"ACCESS - User: {email} | Path: /headers | IP: {request.remote_addr}")
-    
-    return render_template('headers.html', email=email, headers=headers_dict)
+
+
 
 
 @app.route('/logs')
@@ -222,6 +196,50 @@ def logs():
     logger.info(f"ACCESS - User: {email} | Path: /logs | IP: {request.remote_addr}")
     
     return render_template('logs.html', email=email)
+
+
+@app.route('/api/logs', methods=['GET'])
+@limiter.limit("30 per minute")
+def api_get_logs():
+    """Get recent log entries"""
+    email = get_user_email()
+    
+    if not is_authorized():
+        return jsonify({'error': 'Unauthorized'}), 403
+    
+    # Get log entries from a log file or memory
+    import os
+    import subprocess
+    
+    try:
+        # Try to read logs from Docker container
+        if os.path.exists('/var/log/app.log'):
+            # Read from log file if it exists
+            with open('/var/log/app.log', 'r') as f:
+                lines = f.readlines()
+                # Get last 100 lines
+                recent_lines = lines[-100:] if len(lines) > 100 else lines
+        else:
+            # For development or when log file doesn't exist
+            recent_lines = [
+                f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] INFO - Application started\n",
+                f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] INFO - User {email} accessed logs\n",
+                f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] INFO - Health check completed\n"
+            ]
+        
+        return jsonify({
+            'logs': [line.strip() for line in recent_lines],
+            'count': len(recent_lines),
+            'timestamp': datetime.now().isoformat()
+        })
+    
+    except Exception as e:
+        logger.error(f"Error reading logs: {str(e)}")
+        return jsonify({
+            'logs': [f"Error reading logs: {str(e)}"],
+            'count': 1,
+            'timestamp': datetime.now().isoformat()
+        })
 
 
 # ============================================================================
@@ -464,6 +482,146 @@ def api_toggle_route(route_id):
         logger.exception("CADDY_SYNC after toggle failed: %s", e)
     
     return jsonify({'success': True, 'enabled': new_enabled})
+
+
+# ============================================================================
+# EMAIL MANAGEMENT API
+# ============================================================================
+
+@app.route('/api/emails', methods=['GET'])
+@limiter.limit("100 per hour")
+def api_get_emails():
+    """Get all authorized emails"""
+    email = get_user_email()
+    
+    if not is_authorized():
+        return jsonify({'error': 'Unauthorized'}), 403
+    
+    return jsonify({
+        'emails': list(AUTHORIZED_EMAILS),
+        'count': len(AUTHORIZED_EMAILS)
+    })
+
+
+@app.route('/api/emails', methods=['POST'])
+@limiter.limit("20 per hour")
+def api_add_email():
+    """Add a new authorized email"""
+    email = get_user_email()
+    
+    if not is_authorized():
+        return jsonify({'error': 'Unauthorized'}), 403
+    
+    data = request.get_json(silent=True)
+    if not isinstance(data, dict):
+        return jsonify({'error': 'Request body must be a JSON object'}), 400
+    
+    new_email = data.get('email', '').strip().lower()
+    
+    if not new_email:
+        return jsonify({'error': 'Email is required'}), 400
+    
+    # Basic email validation
+    import re
+    if not re.match(r'^[^@]+@[^@]+\.[^@]+$', new_email):
+        return jsonify({'error': 'Invalid email format'}), 400
+    
+    if new_email in AUTHORIZED_EMAILS:
+        return jsonify({'error': 'Email already exists'}), 400
+    
+    try:
+        # Add to file
+        path_obj = Path(settings.emails_file)
+        with path_obj.open('a', encoding='utf-8') as f:
+            f.write(f'{new_email}\n')
+        
+        # Refresh in-memory list
+        refresh_authorized_emails()
+        
+        logger.info(f"EMAIL_ADD - User: {email} | Added: {new_email}")
+        
+        return jsonify({
+            'success': True,
+            'email': new_email,
+            'total_emails': len(AUTHORIZED_EMAILS)
+        }), 201
+    
+    except Exception as e:
+        logger.error(f"EMAIL_ADD_ERROR - User: {email} | Error: {str(e)}")
+        return jsonify({'error': 'Failed to add email'}), 500
+
+
+@app.route('/api/emails/<email_to_remove>', methods=['DELETE'])
+@limiter.limit("20 per hour")
+def api_remove_email(email_to_remove):
+    """Remove an authorized email"""
+    email = get_user_email()
+    
+    if not is_authorized():
+        return jsonify({'error': 'Unauthorized'}), 403
+    
+    email_to_remove = email_to_remove.strip().lower()
+    
+    if email_to_remove not in AUTHORIZED_EMAILS:
+        return jsonify({'error': 'Email not found'}), 404
+    
+    # Prevent removing own email
+    if email_to_remove == email:
+        return jsonify({'error': 'Cannot remove your own email'}), 400
+    
+    try:
+        # Read all emails
+        path_obj = Path(settings.emails_file)
+        emails = []
+        with path_obj.open('r', encoding='utf-8') as f:
+            for line in f:
+                stripped = line.strip()
+                if stripped and not stripped.startswith('#') and stripped.lower() != email_to_remove:
+                    emails.append(stripped)
+        
+        # Write back without the removed email
+        with path_obj.open('w', encoding='utf-8') as f:
+            for e in emails:
+                f.write(f'{e}\n')
+        
+        # Refresh in-memory list
+        refresh_authorized_emails()
+        
+        logger.info(f"EMAIL_REMOVE - User: {email} | Removed: {email_to_remove}")
+        
+        return jsonify({
+            'success': True,
+            'removed_email': email_to_remove,
+            'total_emails': len(AUTHORIZED_EMAILS)
+        })
+    
+    except Exception as e:
+        logger.error(f"EMAIL_REMOVE_ERROR - User: {email} | Error: {str(e)}")
+        return jsonify({'error': 'Failed to remove email'}), 500
+
+
+@app.route('/api/emails/refresh', methods=['POST'])
+@limiter.limit("10 per hour")
+def api_refresh_emails():
+    """Refresh authorized emails from disk"""
+    email = get_user_email()
+    
+    if not is_authorized():
+        return jsonify({'error': 'Unauthorized'}), 403
+    
+    try:
+        count = refresh_authorized_emails()
+        logger.info(f"EMAIL_REFRESH - User: {email} | Count: {count}")
+        
+        return jsonify({
+            'success': True,
+            'count': count,
+            'emails': list(AUTHORIZED_EMAILS)
+        })
+    
+    except Exception as e:
+        logger.error(f"EMAIL_REFRESH_ERROR - User: {email} | Error: {str(e)}")
+        return jsonify({'error': 'Failed to refresh emails'}), 500
 
 
 # ============================================================================

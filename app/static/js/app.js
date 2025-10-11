@@ -2,29 +2,6 @@
  * Main JavaScript for Shark-no-Ninsho-Mon
  */
 
-// Theme Management
-function initTheme() {
-    const theme = localStorage.getItem('theme') || 'light';
-    document.documentElement.setAttribute('data-theme', theme);
-    updateThemeIcon(theme);
-}
-
-function toggleTheme() {
-    const currentTheme = document.documentElement.getAttribute('data-theme');
-    const newTheme = currentTheme === 'light' ? 'dark' : 'light';
-    
-    document.documentElement.setAttribute('data-theme', newTheme);
-    localStorage.setItem('theme', newTheme);
-    updateThemeIcon(newTheme);
-}
-
-function updateThemeIcon(theme) {
-    const themeIcon = document.querySelector('.theme-icon');
-    if (themeIcon) {
-        themeIcon.textContent = theme === 'light' ? 'Dark' : 'Light';
-    }
-}
-
 // Particle Animation
 function createParticles() {
     const particlesContainer = document.getElementById('particles');
@@ -44,14 +21,10 @@ function createParticles() {
 
 // Initialize on page load
 document.addEventListener('DOMContentLoaded', function() {
-    initTheme();
-    createParticles();
+    // Set dark theme permanently
+    document.documentElement.setAttribute('data-theme', 'dark');
     
-    // Add theme toggle event listener
-    const themeToggle = document.getElementById('theme-toggle');
-    if (themeToggle) {
-        themeToggle.addEventListener('click', toggleTheme);
-    }
+    createParticles();
     
     // Add smooth scroll behavior
     document.querySelectorAll('a[href^="#"]').forEach(anchor => {
@@ -107,4 +80,3 @@ function showNotification(message, type = 'info') {
 
 // Export functions for use in other scripts
 window.showNotification = showNotification;
-window.toggleTheme = toggleTheme;
