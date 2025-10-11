@@ -96,12 +96,11 @@ function renderEmails(emailList) {
                 <td>
                     <div class="email-actions">
                         ${!isCurrent ? `
-                            <button class="btn-remove" onclick="confirmRemoveEmail('${email}')" title="Remove email">
-                                <img src="/static/icons/delete.svg" alt="" style="width: 14px; height: 14px;" aria-hidden="true">
-                                Remove
+                            <button class="btn-icon delete" onclick="confirmRemoveEmail('${email}')" title="Remove email">
+                                <img src="/static/icons/delete.svg" alt="Delete" style="width: 18px; height: 18px;" aria-hidden="true">
                             </button>
                         ` : `
-                            <span class="text-muted">Current user</span>
+                            <span class="text-muted">-</span>
                         `}
                     </div>
                 </td>

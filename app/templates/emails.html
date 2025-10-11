@@ -51,6 +51,7 @@
 
     <!-- Stats Cards -->
     <div class="stats-grid" id="stats-grid">
+        <!-- Top Row: Total and Active Users -->
         <div class="stat-card">
             <div class="stat-icon" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);">
                 <img src="{{ url_for('static', filename='icons/account_circle.svg') }}" alt="" class="icon" aria-hidden="true">
@@ -71,7 +72,8 @@
             </div>
         </div>
         
-        <div class="stat-card">
+        <!-- Bottom Row: Current User - Full Width -->
+        <div class="stat-card stat-card-full">
             <div class="stat-icon" style="background: linear-gradient(135deg, #ed8936 0%, #dd6b20 100%);">
                 <img src="{{ url_for('static', filename='icons/monitor_heart.svg') }}" alt="" class="icon" aria-hidden="true">
             </div>
