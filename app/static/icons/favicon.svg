@@ -5,11 +5,10 @@
      preserveAspectRatio="xMidYMid meet"
      version="1.1"
      style="display:block; max-width:none;">
-  <rect width="5000" height="5000" fill="#1f2230"/>
 
   <!-- Vertical mirror (top-bottom) -->
   <g transform="translate(0,5000) scale(1,-1)" stroke-linecap="round" stroke-linejoin="round">
-    <!-- Shield (filled + visible pink outline) -->
+    <!-- Shield (blue fill + pink outline) -->
     <path
       d="M2593 4582
          c278 -187 676 -358 1040 -447 221 -55 556 -105 695 -105 44 0 66 -5 83 -19
@@ -22,7 +21,7 @@
       stroke-width="1.4"
       vector-effect="non-scaling-stroke"/>
 
-    <!-- Fin -->
+    <!-- Fin (cyan) -->
     <path
       d="M2425 4319 c-77 -50 -360 -194 -490 -249 -303 -129 -624 -207 -1093 -266
          l-42 -5 0 -142 c0 -502 61 -963 180 -1354 58 -191 51 -180 132 -193 103 -18
