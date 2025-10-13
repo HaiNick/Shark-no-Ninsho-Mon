@@ -15,5 +15,10 @@
 	reverse_proxy app:8000 {
 		header_up X-Forwarded-Prefix /
 		header_up X-Forwarded-PathBase /
+		# Forward real client IP (preserve from oauth2-proxy)
+		header_up X-Real-IP {remote_host}
+		header_up X-Forwarded-For {remote_host}
+		# Trust forwarded headers from oauth2-proxy
+		trusted_proxies private_ranges
 	}
 }

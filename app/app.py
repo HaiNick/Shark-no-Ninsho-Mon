@@ -41,7 +41,7 @@ class MemoryLogHandler(logging.Handler):
 
 # Configure logging
 logging.basicConfig(
-    level=logging.INFO,
+    level=logging.DEBUG,  # Temporarily set to DEBUG to see IP headers
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
 )
 logger = logging.getLogger(__name__)
@@ -58,24 +58,48 @@ def get_client_ip():
     Returns:
         str: The client's real IP address
     """
+    # Debug: Log headers for troubleshooting (only log once per 10 requests to avoid spam)
+    import random
+    if random.randint(1, 10) == 1:  # 10% chance to log headers
+        relevant_headers = {k: v for k, v in request.headers.items() 
+                          if 'forward' in k.lower() or 'real' in k.lower() or 'client' in k.lower() or 'remote' in k.lower()}
+        logger.debug(f"IP Headers: {relevant_headers} | remote_addr: {request.remote_addr}")
+    
     # Check X-Forwarded-For header (most common for reverse proxies)
     if 'X-Forwarded-For' in request.headers:
         # X-Forwarded-For can contain multiple IPs, first one is the original client
         forwarded_ips = request.headers['X-Forwarded-For'].split(',')
         client_ip = forwarded_ips[0].strip()
-        return client_ip
+        
+        # Skip Docker internal IPs (172.x.x.x, 10.x.x.x, 192.168.x.x)
+        if not (client_ip.startswith('172.') or client_ip.startswith('10.') or client_ip.startswith('192.168.')):
+            logger.debug(f"Using X-Forwarded-For: {client_ip} (from {request.headers['X-Forwarded-For']})")
+            return client_ip
+        
+        # If first IP is internal, try the last external IP in the chain
+        for ip in reversed(forwarded_ips):
+            ip = ip.strip()
+            if not (ip.startswith('172.') or ip.startswith('10.') or ip.startswith('192.168.') or ip.startswith('127.')):
+                logger.debug(f"Using X-Forwarded-For (external): {ip} (from {request.headers['X-Forwarded-For']})")
+                return ip
     
     # Check X-Real-IP header (used by nginx and others)
     if 'X-Real-IP' in request.headers:
-        return request.headers['X-Real-IP'].strip()
+        client_ip = request.headers['X-Real-IP'].strip()
+        logger.debug(f"Using X-Real-IP: {client_ip}")
+        return client_ip
     
     # Check CF-Connecting-IP header (Cloudflare)
     if 'CF-Connecting-IP' in request.headers:
-        return request.headers['CF-Connecting-IP'].strip()
+        client_ip = request.headers['CF-Connecting-IP'].strip()
+        logger.debug(f"Using CF-Connecting-IP: {client_ip}")
+        return client_ip
     
     # Check X-Forwarded header
     if 'X-Forwarded' in request.headers:
-        return request.headers['X-Forwarded'].strip()
+        client_ip = request.headers['X-Forwarded'].strip()
+        logger.debug(f"Using X-Forwarded: {client_ip}")
+        return client_ip
     
     # Check Forwarded header (RFC 7239 standard)
     if 'Forwarded' in request.headers:
@@ -83,9 +107,12 @@ def get_client_ip():
         forwarded = request.headers['Forwarded']
         for item in forwarded.split(';'):
             if item.strip().startswith('for='):
-                return item.split('=')[1].strip().strip('"')
+                client_ip = item.split('=')[1].strip().strip('"')
+                logger.debug(f"Using Forwarded header: {client_ip}")
+                return client_ip
     
     # Fall back to direct connection (might be Docker IP)
+    logger.debug(f"Using fallback remote_addr: {request.remote_addr}")
     return request.remote_addr
 
 # Initialize Flask app
@@ -237,6 +264,35 @@ def health():
         'status': 'healthy',
         'timestamp': datetime.now().isoformat(),
         'routes_count': len(route_manager.get_all_routes())
+    })
+
+@app.route('/debug/headers')
+@limiter.limit("10 per minute")
+def debug_headers():
+    """Debug endpoint to show all request headers and IP detection"""
+    email = get_user_email()
+    
+    if not is_authorized():
+        return jsonify({'error': 'Unauthorized'}), 403
+    
+    # Get all headers
+    all_headers = dict(request.headers)
+    
+    # Get IP-related headers specifically
+    ip_headers = {k: v for k, v in all_headers.items() 
+                  if any(word in k.lower() for word in ['forward', 'real', 'client', 'remote', 'connect'])}
+    
+    # Get detected IP
+    detected_ip = get_client_ip()
+    
+    return jsonify({
+        'detected_ip': detected_ip,
+        'request_remote_addr': request.remote_addr,
+        'ip_related_headers': ip_headers,
+        'all_headers': all_headers,
+        'user_agent': request.headers.get('User-Agent', ''),
+        'timestamp': datetime.now().isoformat(),
+        'user_email': email
     })
 
 @app.route('/logs')
