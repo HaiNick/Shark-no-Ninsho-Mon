@@ -38,16 +38,22 @@ function setupEventListeners() {
     });
 }
 
-// Load Emails
+// Load Emails with caching
 async function loadEmails() {
     try {
-        const response = await fetch('/api/emails');
+        // Check cache first
+        const cacheKey = 'emails';
+        const cachedData = Utils.getCache(cacheKey, Config.UI.CACHE_DURATION);
         
-        if (!response.ok) {
-            throw new Error('Failed to load emails');
+        if (cachedData) {
+            emails = cachedData;
+            renderEmails(emails);
+            updateStats(emails);
+            return;
         }
         
-        const data = await response.json();
+        // Fetch from API
+        const data = await Utils.apiRequest(Config.API.ENDPOINTS.EMAILS);
         emails = data.emails || [];
         renderEmails(emails);
         updateStats(emails);
@@ -81,8 +87,10 @@ function renderEmails(emailList) {
         return `
             <tr>
                 <td>
-                    <strong>${email}</strong>
-                    ${isCurrent ? '<small style="color: var(--cyan); margin-left: 0.5rem;">(You)</small>' : ''}
+                    <span class="email-address">
+                        ${email}
+                        ${isCurrent ? '<span class="current-user-label">(You)</span>' : ''}
+                    </span>
                 </td>
                 <td>
                     <span class="email-status ${statusClass}">
@@ -91,10 +99,10 @@ function renderEmails(emailList) {
                     </span>
                 </td>
                 <td>
-                    <span class="text-muted">Manual entry</span>
+                    <span class="email-date">Manual entry</span>
                 </td>
                 <td>
-                    <div class="email-actions">
+                    <div class="action-buttons">
                         ${!isCurrent ? `
                             <button class="btn-icon delete" onclick="confirmRemoveEmail('${email}')" title="Remove email">
                                 <img src="/static/icons/delete.svg" alt="Delete" style="width: 18px; height: 18px;" aria-hidden="true">
@@ -123,13 +131,18 @@ function updateStats(emailList) {
     }
 }
 
-// Filter Emails
-function filterEmails() {
+// Filter Emails with debouncing
+const debouncedFilterEmails = Utils.debounce(function() {
     const searchTerm = document.getElementById('search-input').value.toLowerCase();
     const filteredEmails = emails.filter(email => 
         email.toLowerCase().includes(searchTerm)
     );
     renderEmails(filteredEmails);
+}, Config.UI.DEBOUNCE_DELAY);
+
+// Wrapper function for template compatibility
+function filterEmails() {
+    debouncedFilterEmails();
 }
 
 // Show Add Email Modal

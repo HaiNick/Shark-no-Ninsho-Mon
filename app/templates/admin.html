@@ -3,6 +3,7 @@
 {% block title %}Route Manager - Shark-no-Ninsho-Mon{% endblock %}
 
 {% block extra_css %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/shared.css') }}">
 <link rel="stylesheet" href="{{ url_for('static', filename='css/admin.css') }}">
 <style>
 .icon {
@@ -36,9 +37,9 @@
 {% endblock %}
 
 {% block content %}
-<div class="container admin-container">
+<div class="page-container admin-container">
     <!-- Header -->
-    <div class="admin-header">
+    <div class="page-header">
         <div>
             <h1>Route Manager</h1>
             <p class="subtitle">Manage reverse proxy routes to your services</p>

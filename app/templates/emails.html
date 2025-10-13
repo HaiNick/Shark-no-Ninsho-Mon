@@ -3,6 +3,7 @@
 {% block title %}Email Management - Shark-no-Ninsho-Mon{% endblock %}
 
 {% block extra_css %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/shared.css') }}">
 <link rel="stylesheet" href="{{ url_for('static', filename='css/emails.css') }}">
 <style>
 .icon {
@@ -36,9 +37,9 @@
 {% endblock %}
 
 {% block content %}
-<div class="container emails-container">
+<div class="page-container emails-container">
     <!-- Header -->
-    <div class="emails-header">
+    <div class="page-header">
         <div>
             <h1>Email Management</h1>
             <p class="subtitle">Manage authorized email addresses that can access this application</p>
@@ -101,7 +102,7 @@
         </div>
         
         <div class="table-container">
-            <table class="emails-table" id="emails-table">
+            <table class="routes-table" id="emails-table">
                 <thead>
                     <tr>
                         <th>Email Address</th>

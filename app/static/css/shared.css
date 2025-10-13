@@ -1,21 +1,31 @@
 /* ============================================================================
-   Admin Page Specific Styles
+   Shared Styles for Admin and Email Management Pages
    ============================================================================ */
 
-.admin-container {
-    max-width: 1400px;
+/* ============================================================================
+   Page Layout & Headers
+   ============================================================================ */
+.page-container {
+    max-width: 100%;
+    width: 100%;
+    padding: 0 2rem;
 }
 
-.admin-header {
+.page-header {
     display: flex;
     justify-content: space-between;
     align-items: flex-start;
     margin-bottom: 2rem;
 }
 
-.admin-header h1 {
+.page-header h1 {
     font-size: 2.5rem;
     margin-bottom: 0.5rem;
+}
+
+.subtitle {
+    color: var(--text-secondary);
+    font-size: 1rem;
 }
 
 /* ============================================================================
@@ -74,24 +84,19 @@
 }
 
 /* ============================================================================
-   Table Actions
+   Table Styles
    ============================================================================ */
 .table-actions {
     display: flex;
     gap: 1rem;
     align-items: center;
+    margin-bottom: 1rem;
 }
 
 .search-box {
     position: relative;
     display: flex;
     align-items: center;
-}
-
-.search-box i {
-    position: absolute;
-    left: 1rem;
-    color: var(--text-secondary);
 }
 
 .search-box input {
@@ -110,9 +115,6 @@
     border-color: #667eea;
 }
 
-/* ============================================================================
-   Routes Table
-   ============================================================================ */
 .table-container {
     overflow-x: auto;
 }
@@ -145,7 +147,9 @@
     background: var(--bg-primary);
 }
 
-/* Status Badge */
+/* ============================================================================
+   Status Badges
+   ============================================================================ */
 .status-badge {
     display: inline-flex;
     align-items: center;
@@ -180,69 +184,12 @@
     width: 6px;
     height: 6px;
     border-radius: 50%;
+    background: currentColor;
 }
 
-/* Route Path */
-.route-path {
-    font-family: 'Courier New', monospace;
-    color: #667eea;
-    font-weight: 600;
-}
-
-/* Target */
-.route-target {
-    font-family: 'Courier New', monospace;
-    color: var(--text-secondary);
-    font-size: 0.9rem;
-}
-
-/* Toggle Switch */
-.toggle-switch {
-    position: relative;
-    display: inline-block;
-    width: 50px;
-    height: 26px;
-}
-
-.toggle-switch input {
-    opacity: 0;
-    width: 0;
-    height: 0;
-}
-
-.toggle-slider {
-    position: absolute;
-    cursor: pointer;
-    top: 0;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    background-color: #ccc;
-    transition: 0.4s;
-    border-radius: 26px;
-}
-
-.toggle-slider:before {
-    position: absolute;
-    content: "";
-    height: 18px;
-    width: 18px;
-    left: 4px;
-    bottom: 4px;
-    background-color: white;
-    transition: 0.4s;
-    border-radius: 50%;
-}
-
-input:checked + .toggle-slider {
-    background: var(--gradient-primary);
-}
-
-input:checked + .toggle-slider:before {
-    transform: translateX(24px);
-}
-
-/* Action Buttons */
+/* ============================================================================
+   Action Buttons
+   ============================================================================ */
 .action-buttons {
     display: flex;
     gap: 0.5rem;
@@ -292,7 +239,55 @@ input:checked + .toggle-slider:before {
 }
 
 /* ============================================================================
-   Modal
+   Toggle Switch
+   ============================================================================ */
+.toggle-switch {
+    position: relative;
+    display: inline-block;
+    width: 50px;
+    height: 26px;
+}
+
+.toggle-switch input {
+    opacity: 0;
+    width: 0;
+    height: 0;
+}
+
+.toggle-slider {
+    position: absolute;
+    cursor: pointer;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background-color: #ccc;
+    transition: 0.4s;
+    border-radius: 26px;
+}
+
+.toggle-slider:before {
+    position: absolute;
+    content: "";
+    height: 18px;
+    width: 18px;
+    left: 4px;
+    bottom: 4px;
+    background-color: white;
+    transition: 0.4s;
+    border-radius: 50%;
+}
+
+input:checked + .toggle-slider {
+    background: var(--gradient-primary);
+}
+
+input:checked + .toggle-slider:before {
+    transform: translateX(24px);
+}
+
+/* ============================================================================
+   Modal Styles
    ============================================================================ */
 .modal {
     display: none;
@@ -322,17 +317,6 @@ input:checked + .toggle-slider:before {
     overflow-y: auto;
     box-shadow: var(--shadow-xl);
     animation: slideUp 0.3s ease;
-}
-
-@keyframes slideUp {
-    from {
-        opacity: 0;
-        transform: translateY(50px);
-    }
-    to {
-        opacity: 1;
-        transform: translateY(0);
-    }
 }
 
 .modal-header {
@@ -376,7 +360,7 @@ input:checked + .toggle-slider:before {
 }
 
 /* ============================================================================
-   Forms
+   Form Styles
    ============================================================================ */
 form {
     padding: 1.5rem;
@@ -454,17 +438,6 @@ form {
     z-index: 2000;
 }
 
-@keyframes slideIn {
-    from {
-        opacity: 0;
-        transform: translateX(100%);
-    }
-    to {
-        opacity: 1;
-        transform: translateX(0);
-    }
-}
-
 .toast.show {
     display: block;
 }
@@ -492,20 +465,27 @@ form {
     padding: 2rem;
 }
 
-.fa-spinner {
+.spinner svg {
     animation: spin 1s linear infinite;
 }
 
-@keyframes spin {
-    from { transform: rotate(0deg); }
-    to { transform: rotate(360deg); }
+/* ============================================================================
+   Utility Classes
+   ============================================================================ */
+.text-muted {
+    color: var(--text-secondary);
+    font-size: 0.9rem;
 }
 
 /* ============================================================================
    Responsive Design
    ============================================================================ */
 @media (max-width: 768px) {
-    .admin-header {
+    .page-container {
+        padding: 0 1rem;
+    }
+    
+    .page-header {
         flex-direction: column;
         gap: 1rem;
     }

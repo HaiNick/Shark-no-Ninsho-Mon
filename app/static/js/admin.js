@@ -32,21 +32,31 @@ function setupEventListeners() {
     });
 }
 
-// Load Routes
+// Load Routes with caching
 async function loadRoutes() {
     try {
-        const response = await fetch('/api/routes');
+        // Check cache first
+        const cacheKey = 'routes';
+        const cachedData = Utils.getCache(cacheKey, Config.UI.CACHE_DURATION);
         
-        if (!response.ok) {
-            throw new Error('Failed to load routes');
+        if (cachedData) {
+            routes = cachedData;
+            renderRoutes(routes);
+            updateStats(routes);
+            return;
         }
         
-        routes = await response.json();
+        // Fetch from API
+        const data = await Utils.apiRequest(Config.API.ENDPOINTS.ROUTES);
+        routes = data;
+        
+        // Cache the result
+        Utils.setCache(cacheKey, routes);
+        
         renderRoutes(routes);
         updateStats(routes);
     } catch (error) {
-        console.error('Error loading routes:', error);
-        showToast('Failed to load routes: ' + error.message, 'error');
+        Utils.handleError(error, 'Loading routes');
     }
 }
 
@@ -117,8 +127,8 @@ function updateStats(routesList) {
     document.getElementById('stat-enabled').textContent = enabled;
 }
 
-// Search/Filter Routes
-function filterRoutes() {
+// Search/Filter Routes with debouncing
+const debouncedFilterRoutes = Utils.debounce(function() {
     const searchTerm = document.getElementById('search-input').value.toLowerCase();
     
     if (!searchTerm) {
@@ -133,22 +143,32 @@ function filterRoutes() {
     );
     
     renderRoutes(filtered);
+}, Config.UI.DEBOUNCE_DELAY);
+
+// Wrapper function for template compatibility
+function filterRoutes() {
+    debouncedFilterRoutes();
 }
 
-// Refresh Routes
+// Refresh Routes with loading state
 async function refreshRoutes() {
     const btn = event.target.closest('button');
     const icon = btn.querySelector('.icon');
+    
+    // Clear cache to force fresh data
+    Utils.clearCache('routes');
+    
     if (icon) {
-        icon.style.animation = 'spin 1s linear infinite';
+        icon.classList.add('animate-spin');
     }
     
     await loadRoutes();
     
     if (icon) {
-        icon.style.animation = '';
+        icon.classList.remove('animate-spin');
     }
-    showToast('Routes refreshed', 'success');
+    
+    Utils.showToast('Routes refreshed', Config.TOAST_TYPES.SUCCESS);
 }
 
 // Modal Management
@@ -330,13 +350,4 @@ async function deleteRoute(routeId) {
     }
 }
 
-// Toast Notifications
-function showToast(message, type = 'info') {
-    const toast = document.getElementById('toast');
-    toast.textContent = message;
-    toast.className = `toast ${type} show`;
-    
-    setTimeout(() => {
-        toast.classList.remove('show');
-    }, 3000);
-}
+// Toast functionality now provided by utils.js

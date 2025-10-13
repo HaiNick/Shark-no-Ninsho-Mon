@@ -3,56 +3,13 @@
 {% block title %}Dashboard - Shark-no-Ninsho-Mon{% endblock %}
 
 {% block extra_css %}
-{{ super() }}
-<style>
-.quick-links {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
-    gap: 1rem;
-}
-
-.quick-link {
-    display: flex;
-    align-items: center;
-    padding: 0.75rem 1rem;
-    border-radius: 12px;
-    background: rgba(255, 255, 255, 0.08);
-    backdrop-filter: blur(6px);
-    border: 1px solid rgba(255, 255, 255, 0.12);
-    transition: transform 0.2s ease, border-color 0.2s ease;
-}
-
-.quick-link:hover {
-    transform: translateY(-2px);
-    border-color: rgba(255, 255, 255, 0.3);
-}
-
-.link-icon {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    margin-right: 0.75rem;
-    padding: 0.5rem;
-    border-radius: 10px;
-    background: rgba(255, 255, 255, 0.12);
-}
-
-.link-icon img {
-    width: 28px;
-    height: 28px;
-    display: block;
-}
-
-.quick-link span:last-child {
-    font-weight: 600;
-}
-</style>
+<link rel="stylesheet" href="{{ url_for('static', filename='css/dashboard.css') }}">
 {% endblock %}
 
 {% block content %}
-<div class="container">
+<div class="dashboard-container">
     <!-- Welcome Card -->
-    <div class="card welcome-card">
+    <div class="welcome-card">
         <h1>Welcome back, <span class="user-email">{{ email }}</span></h1>
         <p class="subtitle">You are successfully authenticated and authorized</p>
     </div>
@@ -83,21 +40,22 @@
                             {% endif %}
                         </div>
                         <div class="service-info">
-                            <h3>{{ route.name }}{% if not route.enabled %} <small>(Disabled)</small>{% endif %}</h3>
+                            <h3 class="service-title">{{ route.name }}{% if not route.enabled %} <small>(Disabled)</small>{% endif %}</h3>
                             <p class="service-path">{{ route.path }}</p>
                             <p class="service-target">{{ route.target_ip }}:{{ route.target_port }}</p>
                         </div>
-                        <div class="service-status {% if not route.enabled %}status-disabled{% else %}status-{{ route.status }}{% endif %}">
+                        <div class="service-status {% if not route.enabled %}disabled{% elif route.status == 'online' %}online{% elif route.status == 'offline' %}offline{% else %}offline{% endif %}">
+                            <span class="status-dot"></span>
                             {% if not route.enabled %}
-                                <span class="status-dot"></span> Disabled
+                                Disabled
                             {% elif route.status == 'online' %}
-                                <span class="status-dot"></span> Online
+                                Online
                             {% elif route.status == 'slow' %}
-                                <span class="status-dot"></span> Slow
+                                Slow
                             {% elif route.status == 'offline' %}
-                                <span class="status-dot"></span> Offline
+                                Offline
                             {% else %}
-                                <span class="status-dot"></span> Unknown
+                                Unknown
                             {% endif %}
                         </div>
                     </a>
@@ -122,19 +80,19 @@
                 <span class="link-icon">
                     <img src="{{ url_for('static', filename='icons/account_circle.svg') }}" alt="" aria-hidden="true">
                 </span>
-                <span>Email Management</span>
+                <span class="link-text">Email Management</span>
             </a>
             <a href="/logs" class="quick-link">
                 <span class="link-icon">
                     <img src="{{ url_for('static', filename='icons/article.svg') }}" alt="" aria-hidden="true">
                 </span>
-                <span>Application Logs</span>
+                <span class="link-text">Application Logs</span>
             </a>
             <a href="/health" class="quick-link">
                 <span class="link-icon">
                     <img src="{{ url_for('static', filename='icons/monitor_heart.svg') }}" alt="" aria-hidden="true">
                 </span>
-                <span>Health Check</span>
+                <span class="link-text">Health Check</span>
             </a>
         </div>
     </div>

@@ -2,21 +2,29 @@
  * Main JavaScript for Shark-no-Ninsho-Mon
  */
 
-// Particle Animation
+// Optimized Particle Animation with lazy loading
 function createParticles() {
     const particlesContainer = document.getElementById('particles');
     if (!particlesContainer) return;
     
-    const particleCount = 50;
+    // Use config value and reduce for performance
+    const particleCount = Config.UI.PARTICLE_COUNT;
     
-    for (let i = 0; i < particleCount; i++) {
-        const particle = document.createElement('div');
-        particle.className = 'particle';
-        particle.style.left = Math.random() * 100 + '%';
-        particle.style.animationDelay = Math.random() * 20 + 's';
-        particle.style.animationDuration = (15 + Math.random() * 10) + 's';
-        particlesContainer.appendChild(particle);
-    }
+    // Use requestAnimationFrame for better performance
+    requestAnimationFrame(() => {
+        const fragment = document.createDocumentFragment();
+        
+        for (let i = 0; i < particleCount; i++) {
+            const particle = document.createElement('div');
+            particle.className = 'particle hw-accelerate';
+            particle.style.left = Math.random() * 100 + '%';
+            particle.style.animationDelay = Math.random() * 20 + 's';
+            particle.style.animationDuration = (15 + Math.random() * 10) + 's';
+            fragment.appendChild(particle);
+        }
+        
+        particlesContainer.appendChild(fragment);
+    });
 }
 
 // Initialize on page load
@@ -32,51 +40,12 @@ document.addEventListener('DOMContentLoaded', function() {
             e.preventDefault();
             const target = document.querySelector(this.getAttribute('href'));
             if (target) {
-                target.scrollIntoView({
-                    behavior: 'smooth',
-                    block: 'start'
-                });
+                Utils.smoothScrollTo(target);
             }
         });
     });
 });
 
-// Utility Functions
-function showNotification(message, type = 'info') {
-    // Create notification element
-    const notification = document.createElement('div');
-    notification.className = `notification ${type}`;
-    notification.textContent = message;
-    notification.style.cssText = `
-        position: fixed;
-        top: 2rem;
-        right: 2rem;
-        padding: 1rem 1.5rem;
-        background: var(--bg-secondary);
-        border-radius: 8px;
-        box-shadow: var(--shadow-xl);
-        z-index: 2000;
-        animation: slideIn 0.3s ease;
-    `;
-    
-    if (type === 'success') {
-        notification.style.borderLeft = '4px solid var(--status-online)';
-    } else if (type === 'error') {
-        notification.style.borderLeft = '4px solid var(--status-offline)';
-    } else {
-        notification.style.borderLeft = '4px solid #667eea';
-    }
-    
-    document.body.appendChild(notification);
-    
-    // Remove after 3 seconds
-    setTimeout(() => {
-        notification.style.animation = 'fadeOut 0.3s ease';
-        setTimeout(() => {
-            document.body.removeChild(notification);
-        }, 300);
-    }, 3000);
-}
-
-// Export functions for use in other scripts
-window.showNotification = showNotification;
+// Utility functions now provided by utils.js
+// Backwards compatibility
+window.showNotification = Utils.showNotification;

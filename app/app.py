@@ -11,6 +11,7 @@ import threading
 from pathlib import Path
 from dotenv import load_dotenv
 from typing import Any, Dict, Set
+import collections
 
 from config import get_settings
 
@@ -20,12 +21,35 @@ load_dotenv()
 from routes_db import RouteManager
 from caddy_manager import CaddyManager
 
+# In-memory log storage for the web interface
+log_entries = collections.deque(maxlen=200)  # Keep only last 200 entries to save memory
+
+class MemoryLogHandler(logging.Handler):
+    """Custom log handler to store logs in memory for web interface"""
+    def emit(self, record):
+        try:
+            # Only store important log levels to reduce memory usage
+            if record.levelno >= logging.INFO:
+                # Store minimal data to reduce memory footprint
+                log_entries.append({
+                    'timestamp': datetime.fromtimestamp(record.created).strftime('%H:%M:%S'),
+                    'level': record.levelname,
+                    'message': record.getMessage()[:500]  # Truncate long messages
+                })
+        except Exception:
+            self.handleError(record)
+
 # Configure logging
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
 )
 logger = logging.getLogger(__name__)
+
+# Add memory handler to capture logs for web interface
+memory_handler = MemoryLogHandler()
+memory_handler.setFormatter(logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s'))
+logger.addHandler(memory_handler)
 
 # Initialize Flask app
 app = Flask(__name__)
@@ -239,29 +263,22 @@ def api_get_logs():
     if not is_authorized():
         return jsonify({'error': 'Unauthorized'}), 403
     
-    # Get log entries from a log file or memory
-    import os
-    import subprocess
-    
     try:
-        # Try to read logs from Docker container
-        if os.path.exists('/var/log/app.log'):
-            # Read from log file if it exists
-            with open('/var/log/app.log', 'r') as f:
-                lines = f.readlines()
-                # Get last 100 lines
-                recent_lines = lines[-100:] if len(lines) > 100 else lines
-        else:
-            # For development or when log file doesn't exist
-            recent_lines = [
-                f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] INFO - Application started\n",
-                f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] INFO - User {email} accessed logs\n",
-                f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] INFO - Health check completed\n"
-            ]
+        # Get recent log entries from memory (already limited to 200 entries)
+        recent_entries = list(log_entries)
+        
+        # Format entries for display - simple and fast
+        formatted_logs = []
+        current_date = datetime.now().strftime('%Y-%m-%d')
+        
+        for entry in recent_entries:
+            formatted_logs.append(f"[{current_date} {entry['timestamp']}] {entry['level']} - {entry['message']}")
+        
+        logger.info(f"LOGS_ACCESS - User: {email} | Entries: {len(formatted_logs)} | IP: {request.remote_addr}")
         
         return jsonify({
-            'logs': [line.strip() for line in recent_lines],
-            'count': len(recent_lines),
+            'logs': formatted_logs,
+            'count': len(formatted_logs),
             'timestamp': datetime.now().isoformat()
         })
     
