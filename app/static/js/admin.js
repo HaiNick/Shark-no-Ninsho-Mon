@@ -168,7 +168,7 @@ async function refreshRoutes() {
         icon.classList.remove('animate-spin');
     }
     
-    Utils.showToast('Routes refreshed', Config.TOAST_TYPES.SUCCESS);
+    showToast('Routes refreshed', 'success');
 }
 
 // Modal Management
