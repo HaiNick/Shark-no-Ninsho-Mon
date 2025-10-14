@@ -126,26 +126,27 @@
     </div>
 </div>
 
-<!-- Add Email Modal -->
+<!-- Add/Edit Email Modal -->
 <div id="email-modal" class="modal">
     <div class="modal-content">
         <div class="modal-header">
-            <h2>Add Authorized Email</h2>
+            <h2 id="email-modal-title">Add Authorized Email</h2>
             <button class="modal-close" onclick="closeEmailModal()">&times;</button>
         </div>
         
         <form id="email-form" onsubmit="handleEmailSubmit(event)">
+            <input type="hidden" id="original-email" value="">
             <div class="form-group">
                 <label for="new-email">Email Address *</label>
                 <input type="email" id="new-email" name="email" placeholder="user@example.com" required>
-                <small>Enter a valid email address to grant access to the application.</small>
+                <small id="email-modal-description">Enter a valid email address to grant access to the application.</small>
             </div>
             
             <div class="modal-footer">
                 <button type="button" class="btn btn-secondary" onclick="closeEmailModal()">Cancel</button>
-                <button type="submit" class="btn btn-primary">
+                <button type="submit" class="btn btn-primary" id="email-submit-btn">
                     <img src="{{ url_for('static', filename='icons/check.svg') }}" alt="" class="icon" aria-hidden="true">
-                    Add Email
+                    <span id="email-submit-text">Add Email</span>
                 </button>
             </div>
         </form>

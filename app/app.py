@@ -12,6 +12,7 @@ from pathlib import Path
 from dotenv import load_dotenv
 from typing import Any, Dict, Set
 import collections
+import re
 
 from config import get_settings
 
@@ -69,6 +70,14 @@ limiter = Limiter(
 # Initialize route manager and Caddy manager
 route_manager = RouteManager(settings.routes_db_path)
 caddy_mgr = CaddyManager()  # uses http://caddy:2019 and :8080 by default
+
+def is_valid_email(email: str) -> bool:
+    """Validate email format using regex"""
+    if not email or not isinstance(email, str):
+        return False
+    # Basic but reliable email validation
+    pattern = r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$'
+    return re.match(pattern, email.strip()) is not None
 
 def _load_authorized_emails(path: str) -> Set[str]:
     emails: Set[str] = set()
@@ -559,8 +568,7 @@ def api_add_email():
         return jsonify({'error': 'Email is required'}), 400
     
     # Basic email validation
-    import re
-    if not re.match(r'^[^@]+@[^@]+\.[^@]+$', new_email):
+    if not is_valid_email(new_email):
         return jsonify({'error': 'Invalid email format'}), 400
     
     if new_email in AUTHORIZED_EMAILS:
@@ -635,6 +643,79 @@ def api_remove_email(email_to_remove):
     except Exception as e:
         logger.error(f"EMAIL_REMOVE_ERROR - User: {email} | Error: {str(e)}")
         return jsonify({'error': 'Failed to remove email'}), 500
+
+
+@app.route('/api/emails/<email_to_update>', methods=['PUT'])
+@limiter.limit("10 per hour")
+def api_update_email(email_to_update):
+    """Update an authorized email"""
+    current_user_email = get_user_email()
+    
+    if not is_authorized():
+        return jsonify({'error': 'Unauthorized'}), 403
+    
+    data = request.get_json(silent=True)
+    if not data:
+        return jsonify({'error': 'No data provided'}), 400
+    
+    new_email = data.get('email', '').strip().lower()
+    email_to_update = email_to_update.strip().lower()
+    
+    if not new_email:
+        return jsonify({'error': 'New email is required'}), 400
+    
+    if not is_valid_email(new_email):
+        return jsonify({'error': 'Invalid email format'}), 400
+    
+    if email_to_update not in AUTHORIZED_EMAILS:
+        return jsonify({'error': 'Original email not found'}), 404
+    
+    if new_email in AUTHORIZED_EMAILS and new_email != email_to_update:
+        return jsonify({'error': 'New email already exists'}), 409
+    
+    # Prevent updating own email to avoid locking out
+    if email_to_update == current_user_email:
+        return jsonify({'error': 'Cannot update your own email for security reasons'}), 400
+    
+    try:
+        # Read all emails
+        path_obj = Path(settings.emails_file)
+        emails = []
+        updated = False
+        
+        with path_obj.open('r', encoding='utf-8') as f:
+            for line in f:
+                stripped = line.strip()
+                if stripped and not stripped.startswith('#'):
+                    if stripped.lower() == email_to_update:
+                        emails.append(new_email)
+                        updated = True
+                    else:
+                        emails.append(stripped)
+        
+        if not updated:
+            return jsonify({'error': 'Email not found in file'}), 404
+        
+        # Write back with updated email
+        with path_obj.open('w', encoding='utf-8') as f:
+            for e in emails:
+                f.write(f'{e}\n')
+        
+        # Refresh in-memory list
+        refresh_authorized_emails()
+        
+        logger.info(f"EMAIL_UPDATE - User: {current_user_email} | Updated: {email_to_update} -> {new_email}")
+        
+        return jsonify({
+            'success': True,
+            'old_email': email_to_update,
+            'new_email': new_email,
+            'total_emails': len(AUTHORIZED_EMAILS)
+        })
+    
+    except Exception as e:
+        logger.error(f"EMAIL_UPDATE_ERROR - User: {current_user_email} | Error: {str(e)}")
+        return jsonify({'error': 'Failed to update email'}), 500
 
 
 @app.route('/api/emails/refresh', methods=['POST'])

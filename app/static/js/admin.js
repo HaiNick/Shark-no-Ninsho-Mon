@@ -46,6 +46,19 @@ async function loadRoutes() {
             return;
         }
         
+        // Show loading state for fresh data
+        const tbody = document.getElementById('routes-tbody');
+        if (tbody) {
+            tbody.innerHTML = `
+                <tr>
+                    <td colspan="6" style="text-align: center; padding: 2rem;">
+                        <div class="spinner"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12a9 9 0 11-6.219-8.56"/></svg></div>
+                        <div style="margin-top: 0.5rem;">Loading routes...</div>
+                    </td>
+                </tr>
+            `;
+        }
+        
         // Fetch from API
         const data = await Utils.apiRequest(Config.API.ENDPOINTS.ROUTES);
         routes = data;
@@ -253,6 +266,7 @@ async function handleSubmit(event) {
         
         showToast(routeId ? 'Route updated successfully' : 'Route created successfully', 'success');
         closeModal();
+        Utils.clearCache('routes'); // Clear cache to force refresh
         await loadRoutes();
         
     } catch (error) {
@@ -275,6 +289,7 @@ async function toggleRoute(routeId) {
         }
         
         showToast(`Route ${result.enabled ? 'enabled' : 'disabled'}`, 'success');
+        Utils.clearCache('routes'); // Clear cache to force refresh
         await loadRoutes();
         
     } catch (error) {
@@ -330,6 +345,12 @@ async function deleteRoute(routeId) {
         return;
     }
     
+    // Find the delete button and add loading state
+    const deleteBtn = event.target.closest('button');
+    const originalContent = deleteBtn.innerHTML;
+    deleteBtn.disabled = true;
+    deleteBtn.innerHTML = '<div class="spinner"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12a9 9 0 11-6.219-8.56"/></svg></div>';
+    
     try {
         const response = await fetch(`/api/routes/${routeId}`, {
             method: 'DELETE'
@@ -342,11 +363,16 @@ async function deleteRoute(routeId) {
         }
         
         showToast('Route deleted successfully', 'success');
+        Utils.clearCache('routes'); // Clear cache to force refresh
         await loadRoutes();
         
     } catch (error) {
         console.error('Error deleting route:', error);
         showToast('Failed to delete route: ' + error.message, 'error');
+        
+        // Restore button on error
+        deleteBtn.disabled = false;
+        deleteBtn.innerHTML = originalContent;
     }
 }
 
