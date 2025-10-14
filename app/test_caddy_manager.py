@@ -199,8 +199,22 @@ def test_sync_http_error(mock_put, caddy_manager, sample_routes):
 
 
 @patch('caddy_manager.requests.get')
-def test_connection_success(mock_get, caddy_manager):
+@patch('socket.create_connection')
+@patch('socket.getaddrinfo')
+@patch('config.get_settings')
+def test_connection_success(mock_get_settings, mock_getaddrinfo, mock_create_connection, mock_get, caddy_manager):
     """Test successful connection test"""
+    # Mock settings
+    mock_settings = Mock()
+    mock_settings.http_timeout_sec = 3
+    mock_settings.slow_threshold_ms = 2000
+    mock_get_settings.return_value = mock_settings
+    
+    # Mock DNS and TCP
+    mock_getaddrinfo.return_value = [(None, None, None, None, ('192.168.1.100', 8096))]
+    mock_create_connection.return_value.__enter__ = Mock()
+    mock_create_connection.return_value.__exit__ = Mock()
+    
     mock_response = Mock()
     mock_response.status_code = 200
     mock_get.return_value = mock_response
@@ -216,14 +230,30 @@ def test_connection_success(mock_get, caddy_manager):
     
     assert result["success"] is True
     assert result["status"] in ["online", "slow"]
+    assert result["state"] in ["UP", "DEGRADED"]
     assert result["status_code"] == 200
     assert "response_time" in result
 
 
 @patch('caddy_manager.requests.get')
-def test_connection_timeout(mock_get, caddy_manager):
+@patch('socket.create_connection')
+@patch('socket.getaddrinfo')
+@patch('config.get_settings')
+def test_connection_timeout(mock_get_settings, mock_getaddrinfo, mock_create_connection, mock_get, caddy_manager):
     """Test connection timeout"""
     import requests
+    
+    # Mock settings
+    mock_settings = Mock()
+    mock_settings.http_timeout_sec = 3
+    mock_settings.slow_threshold_ms = 2000
+    mock_get_settings.return_value = mock_settings
+    
+    # Mock DNS and TCP
+    mock_getaddrinfo.return_value = [(None, None, None, None, ('192.168.1.100', 8096))]
+    mock_create_connection.return_value.__enter__ = Mock()
+    mock_create_connection.return_value.__exit__ = Mock()
+    
     mock_get.side_effect = requests.exceptions.Timeout("Connection timeout")
     
     route = {
@@ -237,6 +267,8 @@ def test_connection_timeout(mock_get, caddy_manager):
     
     assert result["success"] is False
     assert result["status"] == "timeout"
+    assert result["state"] == "DOWN"
+    assert result["reason"] == "timeout"
 
 
 @patch('caddy_manager.requests.get')
@@ -259,8 +291,22 @@ def test_connection_refused(mock_get, caddy_manager):
 
 
 @patch('caddy_manager.requests.get')
-def test_connection_server_error(mock_get, caddy_manager):
+@patch('socket.create_connection')
+@patch('socket.getaddrinfo')
+@patch('config.get_settings')
+def test_connection_server_error(mock_get_settings, mock_getaddrinfo, mock_create_connection, mock_get, caddy_manager):
     """Test connection with server error response"""
+    # Mock settings
+    mock_settings = Mock()
+    mock_settings.http_timeout_sec = 3
+    mock_settings.slow_threshold_ms = 2000
+    mock_get_settings.return_value = mock_settings
+    
+    # Mock DNS and TCP
+    mock_getaddrinfo.return_value = [(None, None, None, None, ('192.168.1.100', 8096))]
+    mock_create_connection.return_value.__enter__ = Mock()
+    mock_create_connection.return_value.__exit__ = Mock()
+    
     mock_response = Mock()
     mock_response.status_code = 500
     mock_get.return_value = mock_response
@@ -274,15 +320,31 @@ def test_connection_server_error(mock_get, caddy_manager):
     
     result = caddy_manager.test_connection(route)
     
-    assert result["success"] is True
+    assert result["success"] is False  # Changed: 5xx errors are now considered DOWN
     assert result["status"] == "error"
+    assert result["state"] == "DOWN"
+    assert result["reason"] == "error_5xx"
     assert result["status_code"] == 500
 
 
 @patch('caddy_manager.requests.get')
-def test_connection_slow_response(mock_get, caddy_manager):
+@patch('socket.create_connection')
+@patch('socket.getaddrinfo')
+@patch('config.get_settings')
+def test_connection_slow_response(mock_get_settings, mock_getaddrinfo, mock_create_connection, mock_get, caddy_manager):
     """Test slow connection detection"""
     import time
+    
+    # Mock settings
+    mock_settings = Mock()
+    mock_settings.http_timeout_sec = 3
+    mock_settings.slow_threshold_ms = 2000
+    mock_get_settings.return_value = mock_settings
+    
+    # Mock DNS and TCP
+    mock_getaddrinfo.return_value = [(None, None, None, None, ('192.168.1.100', 8096))]
+    mock_create_connection.return_value.__enter__ = Mock()
+    mock_create_connection.return_value.__exit__ = Mock()
     
     def slow_request(*args, **kwargs):
         time.sleep(2.5)  # Simulate slow response
@@ -303,38 +365,68 @@ def test_connection_slow_response(mock_get, caddy_manager):
     
     assert result["success"] is True
     assert result["status"] == "slow"
+    assert result["state"] == "DEGRADED"
+    assert result["reason"] == "slow"
     assert result["response_time"] > 2000
 
 
 def test_connection_uses_timeout(caddy_manager):
     """Test that connection test respects timeout setting"""
-    with patch('caddy_manager.requests.get') as mock_get:
-        route = {
-            "target_ip": "192.168.1.100",
-            "target_port": 8096,
-            "protocol": "http",
-            "timeout": 15
-        }
-        
-        caddy_manager.test_connection(route)
-        
-        # Should use min(timeout, 10) = 10
-        assert mock_get.call_args[1]["timeout"] == 10
+    with patch('config.get_settings') as mock_get_settings:
+        with patch('socket.getaddrinfo') as mock_getaddrinfo:
+            with patch('socket.create_connection') as mock_create_connection:
+                with patch('caddy_manager.requests.get') as mock_get:
+                    # Mock settings
+                    mock_settings = Mock()
+                    mock_settings.http_timeout_sec = 3  # Config default is 3s
+                    mock_settings.slow_threshold_ms = 2000
+                    mock_get_settings.return_value = mock_settings
+                    
+                    # Mock DNS and TCP
+                    mock_getaddrinfo.return_value = [(None, None, None, None, ('192.168.1.100', 8096))]
+                    mock_create_connection.return_value.__enter__ = Mock()
+                    mock_create_connection.return_value.__exit__ = Mock()
+                    
+                    route = {
+                        "target_ip": "192.168.1.100",
+                        "target_port": 8096,
+                        "protocol": "http",
+                        "timeout": 15
+                    }
+                    
+                    caddy_manager.test_connection(route)
+                    
+                    # Should use min(route_timeout, config_timeout) = min(15, 3) = 3
+                    assert mock_get.call_args[1]["timeout"] == 3
 
 
 def test_connection_uses_protocol(caddy_manager):
     """Test that connection test uses correct protocol"""
-    with patch('caddy_manager.requests.get') as mock_get:
-        route = {
-            "target_ip": "192.168.1.100",
-            "target_port": 8443,
-            "protocol": "https",
-            "timeout": 30
-        }
-        
-        caddy_manager.test_connection(route)
-        
-        assert mock_get.call_args[0][0] == "https://192.168.1.100:8443/"
+    with patch('config.get_settings') as mock_get_settings:
+        with patch('socket.getaddrinfo') as mock_getaddrinfo:
+            with patch('socket.create_connection') as mock_create_connection:
+                with patch('caddy_manager.requests.get') as mock_get:
+                    # Mock settings
+                    mock_settings = Mock()
+                    mock_settings.http_timeout_sec = 3
+                    mock_settings.slow_threshold_ms = 2000
+                    mock_get_settings.return_value = mock_settings
+                    
+                    # Mock DNS and TCP
+                    mock_getaddrinfo.return_value = [(None, None, None, None, ('192.168.1.100', 8443))]
+                    mock_create_connection.return_value.__enter__ = Mock()
+                    mock_create_connection.return_value.__exit__ = Mock()
+                    
+                    route = {
+                        "target_ip": "192.168.1.100",
+                        "target_port": 8443,
+                        "protocol": "https",
+                        "timeout": 30
+                    }
+                    
+                    caddy_manager.test_connection(route)
+                    
+                    assert mock_get.call_args[0][0] == "https://192.168.1.100:8443/"
 
 
 def test_sync_builds_valid_json(caddy_manager, sample_routes):
