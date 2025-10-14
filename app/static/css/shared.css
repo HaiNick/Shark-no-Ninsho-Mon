@@ -160,6 +160,7 @@
     font-weight: 600;
 }
 
+/* Legacy status classes for backward compatibility */
 .status-badge.online {
     background: rgba(72, 187, 120, 0.1);
     color: var(--status-online);
@@ -178,6 +179,22 @@
 .status-badge.unknown {
     background: rgba(160, 174, 192, 0.1);
     color: var(--status-unknown);
+}
+
+/* New state-based classes */
+.status-badge.up {
+    background: rgba(72, 187, 120, 0.1);
+    color: var(--status-online);
+}
+
+.status-badge.degraded {
+    background: rgba(237, 137, 54, 0.1);
+    color: var(--status-slow);
+}
+
+.status-badge.down {
+    background: rgba(245, 101, 101, 0.1);
+    color: var(--status-offline);
 }
 
 .status-badge .status-dot {

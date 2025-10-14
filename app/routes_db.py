@@ -74,8 +74,14 @@ class RouteManager:
             'timeout': timeout,
             'preserve_host': preserve_host,
             'websocket': websocket,
-            'status': 'unknown',
+            'status': 'unknown',  # Legacy field, kept for backward compat
+            'state': 'UNKNOWN',   # New field: UP, DEGRADED, DOWN, UNKNOWN
+            'reason': 'unknown',  # New field: detailed reason
+            'http_status': None,  # HTTP status code if available
+            'duration_ms': None,  # Response time in milliseconds
+            'last_error': None,   # Last error message
             'last_check': None,
+            'retries_used': 0,    # Number of retries used
             'created_at': datetime.now().isoformat(),
             'updated_at': datetime.now().isoformat()
         }
@@ -124,12 +130,32 @@ class RouteManager:
             result = self.routes.remove(self.Route.id == route_id)
             return len(result) > 0
     
-    def update_route_status(self, route_id: str, status: str, last_check: str = None):
-        """Update route health status"""
+    def update_route_status(self, route_id: str, status: str = None, last_check: str = None,
+                            state: str = None, reason: str = None, http_status: int = None,
+                            duration_ms: int = None, last_error: str = None, retries_used: int = None):
+        """Update route health status with enhanced fields"""
         updates = {
-            'status': status,
             'last_check': last_check or datetime.now().isoformat()
         }
+        
+        # Support legacy status field for backward compatibility
+        if status is not None:
+            updates['status'] = status
+        
+        # New enhanced status fields
+        if state is not None:
+            updates['state'] = state
+        if reason is not None:
+            updates['reason'] = reason
+        if http_status is not None:
+            updates['http_status'] = http_status
+        if duration_ms is not None:
+            updates['duration_ms'] = duration_ms
+        if last_error is not None:
+            updates['last_error'] = last_error
+        if retries_used is not None:
+            updates['retries_used'] = retries_used
+            
         return self.update_route(route_id, updates)
     
     def search_routes(self, query: str) -> List[Dict]:
@@ -266,6 +292,24 @@ class RouteManager:
 
         if 'status' in updates:
             sanitized['status'] = str(updates['status'])
+
+        if 'state' in updates:
+            sanitized['state'] = str(updates['state'])
+
+        if 'reason' in updates:
+            sanitized['reason'] = str(updates['reason'])
+
+        if 'http_status' in updates:
+            sanitized['http_status'] = updates['http_status']
+
+        if 'duration_ms' in updates:
+            sanitized['duration_ms'] = updates['duration_ms']
+
+        if 'last_error' in updates:
+            sanitized['last_error'] = updates['last_error']
+
+        if 'retries_used' in updates:
+            sanitized['retries_used'] = updates['retries_used']
 
         if 'last_check' in updates:
             sanitized['last_check'] = updates['last_check']

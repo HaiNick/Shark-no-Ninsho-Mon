@@ -862,10 +862,17 @@ def health_check_worker(stop_event: threading.Event, interval: int):
             for route in routes:
                 if route.get('health_check', False) and route.get('enabled', True):
                     result = caddy_mgr.test_connection(route)
-                    if result.get('success'):
-                        route_manager.update_route_status(route['id'], result['status'])
-                    else:
-                        route_manager.update_route_status(route['id'], result.get('status', 'error'))
+                    
+                    # Update with new enhanced status fields
+                    route_manager.update_route_status(
+                        route['id'],
+                        status=result.get('status'),  # Legacy field
+                        state=result.get('state'),
+                        reason=result.get('reason'),
+                        http_status=result.get('status_code'),
+                        duration_ms=result.get('response_time'),
+                        last_error=result.get('error') or result.get('detail')
+                    )
 
             logger.info(f"HEALTH_CHECK - Checked {len(routes)} routes")
 

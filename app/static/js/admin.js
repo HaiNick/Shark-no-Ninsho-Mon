@@ -91,14 +91,39 @@ function renderRoutes(routesList) {
         return;
     }
     
-    tbody.innerHTML = routesList.map(route => `
+    tbody.innerHTML = routesList.map(route => {
+        // Determine status badge class and text
+        let badgeClass = route.status || 'unknown';
+        let badgeText = (route.status || 'unknown').charAt(0).toUpperCase() + (route.status || 'unknown').slice(1);
+        
+        // Use new state/reason if available
+        if (route.state) {
+            badgeClass = route.state.toLowerCase();
+            if (route.state === 'UP') {
+                badgeText = route.http_status ? `OK — ${route.http_status}` : 'OK';
+            } else if (route.state === 'DEGRADED') {
+                badgeText = route.duration_ms ? `SLOW — ${(route.duration_ms / 1000).toFixed(1)}s` : 'SLOW';
+            } else if (route.state === 'DOWN') {
+                if (route.reason === 'offline_dns') badgeText = 'DOWN — DNS';
+                else if (route.reason === 'offline_conn') badgeText = 'DOWN — Connect';
+                else if (route.reason === 'timeout') badgeText = 'DOWN — Timeout';
+                else if (route.reason === 'error_5xx') badgeText = route.http_status ? `DOWN — ${route.http_status}` : 'DOWN — 5xx';
+                else if (route.reason === 'error_exc') badgeText = 'DOWN — Error';
+                else if (route.reason === 'misconfig') badgeText = 'DOWN — Config';
+                else badgeText = 'DOWN';
+            } else {
+                badgeText = 'UNKNOWN';
+            }
+        }
+        
+        return `
         <tr>
             <td>
-                <span class="status-badge ${route.status || 'unknown'}">
+                <span class="status-badge ${badgeClass}" title="${route.last_error || ''}">
                     <span class="status-dot"></span>
-                    ${(route.status || 'unknown').charAt(0).toUpperCase() + (route.status || 'unknown').slice(1)}
+                    ${badgeText}
                 </span>
-            </td>
+            </td>`;
             <td><span class="route-path">${route.path}</span></td>
             <td>${route.name}</td>
             <td><span class="route-target">${route.protocol}://${route.target_ip}:${route.target_port}${route.target_path || '/'}</span></td>
@@ -124,7 +149,8 @@ function renderRoutes(routesList) {
                 </div>
             </td>
         </tr>
-    `).join('');
+    `;
+    }).join('');
 }
 
 // Update Stats

@@ -26,6 +26,8 @@ class Settings:
     health_check_enabled: bool
     health_check_interval: int
     upstream_ssl_verify: bool
+    http_timeout_sec: int
+    slow_threshold_ms: int
 
 
 @lru_cache()
@@ -53,6 +55,18 @@ def get_settings() -> Settings:
 
     upstream_ssl_verify = _to_bool(env.get("UPSTREAM_SSL_VERIFY"), default=False)
 
+    try:
+        http_timeout_sec = int(env.get("HTTP_TIMEOUT_SEC", 3))
+    except (TypeError, ValueError):
+        http_timeout_sec = 3
+    http_timeout_sec = max(1, min(http_timeout_sec, 10))  # Cap between 1-10 seconds
+
+    try:
+        slow_threshold_ms = int(env.get("SLOW_THRESHOLD_MS", 2000))
+    except (TypeError, ValueError):
+        slow_threshold_ms = 2000
+    slow_threshold_ms = max(100, slow_threshold_ms)  # Minimum 100ms
+
     return Settings(
         secret_key=secret_key,
         routes_db_path=routes_db_path,
@@ -60,4 +74,6 @@ def get_settings() -> Settings:
         health_check_enabled=health_check_enabled,
         health_check_interval=health_check_interval,
         upstream_ssl_verify=upstream_ssl_verify,
+        http_timeout_sec=http_timeout_sec,
+        slow_threshold_ms=slow_threshold_ms,
     )
