@@ -50,7 +50,8 @@
       OAUTH2_PROXY_PREFER_EMAIL_TO_USER: "true"
       OAUTH2_PROXY_SET_XAUTHREQUEST: "true"
       # Ensure real client IP is forwarded
-      OAUTH2_PROXY_REAL_CLIENT_IP_HEADER: "X-Real-IP"
+      OAUTH2_PROXY_REAL_CLIENT_IP_HEADER: "X-Forwarded-For"
+      OAUTH2_PROXY_PASS_HOST_HEADERS: "true"
       OAUTH2_PROXY_AUTHENTICATED_EMAILS_FILE: "/etc/oauth2-proxy/emails.txt"
       OAUTH2_PROXY_SKIP_PROVIDER_BUTTON: "true"
       OAUTH2_PROXY_COOKIE_SECURE: "true"
