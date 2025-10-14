@@ -61,8 +61,8 @@
       OAUTH2_PROXY_REQUEST_LOGGING: "true"
       OAUTH2_PROXY_REQUEST_LOGGING_FORMAT: "json"
       OAUTH2_PROXY_AUTH_LOGGING: "true"
-      # Trust the Docker network and configure IP forwarding
-      OAUTH2_PROXY_TRUSTED_IPS: "172.16.0.0/12,10.0.0.0/8,192.168.0.0/16"
+      # Trust Tailscale Funnel (localhost) and Docker bridge for IP forwarding
+      OAUTH2_PROXY_TRUSTED_IPS: "127.0.0.1/32,172.18.0.1/32"
     volumes:
       - ./emails.txt:/etc/oauth2-proxy/emails.txt:ro
     depends_on:
