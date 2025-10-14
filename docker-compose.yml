@@ -41,7 +41,6 @@
       # Point OAuth2 Proxy to Caddy (edge proxy) instead of Flask
       OAUTH2_PROXY_UPSTREAMS: "http://caddy:8080"
       OAUTH2_PROXY_HTTP_ADDRESS: "0.0.0.0:4180"
-      OAUTH2_PROXY_REVERSE_PROXY: "true"
       OAUTH2_PROXY_PASS_USER_HEADERS: "true"
       OAUTH2_PROXY_PASS_AUTHORIZATION_HEADER: "false"
       OAUTH2_PROXY_PASS_ACCESS_TOKEN: "true"
@@ -49,20 +48,10 @@
       OAUTH2_PROXY_PASS_BASIC_AUTH: "false"
       OAUTH2_PROXY_PREFER_EMAIL_TO_USER: "true"
       OAUTH2_PROXY_SET_XAUTHREQUEST: "true"
-      # Ensure real client IP is forwarded
-      OAUTH2_PROXY_REAL_CLIENT_IP_HEADER: "X-Forwarded-For"
-      OAUTH2_PROXY_PASS_HOST_HEADERS: "true"
       OAUTH2_PROXY_AUTHENTICATED_EMAILS_FILE: "/etc/oauth2-proxy/emails.txt"
       OAUTH2_PROXY_SKIP_PROVIDER_BUTTON: "true"
       OAUTH2_PROXY_COOKIE_SECURE: "true"
       OAUTH2_PROXY_COOKIE_SAMESITE: "lax"
-      # Enable detailed logging with JSON format for IP tracking
-      OAUTH2_PROXY_STANDARD_LOGGING: "true"
-      OAUTH2_PROXY_REQUEST_LOGGING: "true"
-      OAUTH2_PROXY_REQUEST_LOGGING_FORMAT: "json"
-      OAUTH2_PROXY_AUTH_LOGGING: "true"
-      # Trust Tailscale Funnel (localhost) and Docker bridge for IP forwarding
-      OAUTH2_PROXY_TRUSTED_IPS: "127.0.0.1/32,172.18.0.1/32"
     volumes:
       - ./emails.txt:/etc/oauth2-proxy/emails.txt:ro
     depends_on:

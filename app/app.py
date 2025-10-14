@@ -51,28 +51,6 @@ memory_handler = MemoryLogHandler()
 memory_handler.setFormatter(logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s'))
 logger.addHandler(memory_handler)
 
-def get_client_ip():
-    """
-    Get the real client IP address from oauth2-proxy forwarded headers.
-    
-    Returns:
-        str: The client's real IP address
-    """
-    # Check X-Forwarded-For header from oauth2-proxy (most reliable)
-    forwarded_for = request.headers.get('X-Forwarded-For')
-    if forwarded_for:
-        # Take the first (leftmost) IP as the original client
-        client_ip = forwarded_for.split(',')[0].strip()
-        return client_ip
-    
-    # Fallback to X-Real-IP if available
-    real_ip = request.headers.get('X-Real-IP')
-    if real_ip:
-        return real_ip.strip()
-    
-    # Final fallback to remote_addr (Docker IP)
-    return request.remote_addr
-
 # Initialize Flask app
 app = Flask(__name__)
 
@@ -83,7 +61,7 @@ app.config['SECRET_KEY'] = settings.secret_key
 # No default limits - apply specific limits only to sensitive endpoints
 limiter = Limiter(
     app=app,
-    key_func=get_client_ip,
+    key_func=lambda: request.remote_addr,
     default_limits=[],
     storage_uri="memory://"
 )
@@ -185,13 +163,13 @@ def index():
     email = get_user_email()
     
     if not is_authorized():
-        logger.warning(f"UNAUTHORIZED ACCESS - Email: {email} | Authorized emails: {len(AUTHORIZED_EMAILS)} | IP: {get_client_ip()}")
+        logger.warning(f"UNAUTHORIZED ACCESS - Email: {email} | Authorized emails: {len(AUTHORIZED_EMAILS)}")
         return render_template('unauthorized.html', email=email), 403
     
     # Get all routes (both enabled and disabled) to display on dashboard
     routes = route_manager.get_all_routes(enabled_only=False)
     
-    logger.info(f"ACCESS - User: {email} | Path: / | IP: {get_client_ip()}")
+    logger.info(f"ACCESS - User: {email} | Path: /")
     
     return render_template('index.html', email=email, routes=routes)
 
@@ -204,7 +182,7 @@ def admin():
     if not is_authorized():
         return render_template('unauthorized.html', email=email), 403
     
-    logger.info(f"ACCESS - User: {email} | Path: /admin | IP: {get_client_ip()}")
+    logger.info(f"ACCESS - User: {email} | Path: /admin")
     
     return render_template('admin.html', email=email)
 
@@ -227,7 +205,7 @@ def logs():
     if not is_authorized():
         return render_template('unauthorized.html', email=email), 403
     
-    logger.info(f"ACCESS - User: {email} | Path: /logs | IP: {get_client_ip()}")
+    logger.info(f"ACCESS - User: {email} | Path: /logs")
     
     return render_template('logs.html', email=email)
 
@@ -240,7 +218,7 @@ def emails():
     if not is_authorized():
         return render_template('unauthorized.html', email=email), 403
     
-    logger.info(f"ACCESS - User: {email} | Path: /emails | IP: {get_client_ip()}")
+    logger.info(f"ACCESS - User: {email} | Path: /emails")
     
     return render_template('emails.html', email=email)
 
@@ -256,7 +234,7 @@ def route_disabled():
     route_path = request.args.get('path', 'Unknown Route')
     route_name = request.args.get('name', '')
     
-    logger.info(f"ROUTE_DISABLED - User: {email} | Path: {route_path} | IP: {get_client_ip()}")
+    logger.info(f"ROUTE_DISABLED - User: {email} | Path: {route_path}")
     
     return render_template('route_disabled.html', 
                          email=email, 
@@ -284,7 +262,7 @@ def api_get_logs():
         for entry in recent_entries:
             formatted_logs.append(f"[{current_date} {entry['timestamp']}] {entry['level']} - {entry['message']}")
         
-        logger.info(f"LOGS_ACCESS - User: {email} | Entries: {len(formatted_logs)} | IP: {get_client_ip()}")
+        logger.info(f"LOGS_ACCESS - User: {email} | Entries: {len(formatted_logs)}")
         
         return jsonify({
             'logs': formatted_logs,
@@ -744,20 +722,20 @@ def check_route_status(route_path):
     if matching_route:
         # Check if route is disabled
         if not matching_route.get('enabled', True):
-            logger.info(f"ROUTE_DISABLED_ACCESS - User: {email} | Path: {route_path} | Route: {matching_route['name']} | IP: {get_client_ip()}")
+            logger.info(f"ROUTE_DISABLED_ACCESS - User: {email} | Path: {route_path} | Route: {matching_route['name']}")
             return render_template('route_disabled.html', 
                                  email=email, 
                                  route_path=route_path, 
                                  route_name=matching_route.get('name', ''))
         else:
             # Route is enabled, let Caddy handle it (this shouldn't normally be reached in production)
-            logger.info(f"ROUTE_ENABLED_ACCESS - User: {email} | Path: {route_path} | Route: {matching_route['name']} | IP: {get_client_ip()}")
+            logger.info(f"ROUTE_ENABLED_ACCESS - User: {email} | Path: {route_path} | Route: {matching_route['name']}")
             # In production, this would be handled by Caddy proxy
             # For development, we can show a message or redirect
             return f"Route {route_path} is enabled and should be handled by the reverse proxy.", 200
     else:
         # Route not found in our system, return 404
-        logger.warning(f"ROUTE_NOT_FOUND - User: {email} | Path: {route_path} | IP: {get_client_ip()}")
+        logger.warning(f"ROUTE_NOT_FOUND - User: {email} | Path: {route_path}")
         return render_template('404.html', path=route_path), 404
 
 # ============================================================================

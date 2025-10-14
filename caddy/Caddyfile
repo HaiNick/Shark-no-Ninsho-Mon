@@ -13,9 +13,6 @@
 
 	# Default route - proxy to Flask app
 	reverse_proxy app:8000 {
-		# Explicit but non-destructive header forwarding
-		header_up +X-Forwarded-For {remote_host}
-		header_up X-Real-IP {remote_host}
 		header_up X-Forwarded-Prefix /
 		header_up X-Forwarded-PathBase /
 	}
