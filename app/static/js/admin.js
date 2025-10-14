@@ -116,10 +116,10 @@ function renderRoutes(routesList) {
                         <img src="/static/icons/check_circle.svg" alt="" class="icon test-icon" aria-hidden="true">
                     </button>
                     <button class="btn-icon edit" onclick="editRoute('${route.id}')" title="Edit">
-                        <span style="font-weight: bold;">✎</span>
+                        <img src="/static/icons/edit.svg" alt="Edit" style="width: 18px; height: 18px;" aria-hidden="true">
                     </button>
                     <button class="btn-icon delete" onclick="deleteRoute('${route.id}')" title="Delete">
-                        <span style="font-weight: bold;">✕</span>
+                        <img src="/static/icons/delete.svg" alt="Delete" style="width: 18px; height: 18px;" aria-hidden="true">
                     </button>
                 </div>
             </td>
