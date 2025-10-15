@@ -44,10 +44,38 @@
                             <p class="service-path">{{ route.path }}</p>
                             <p class="service-target">{{ route.target_ip }}:{{ route.target_port }}</p>
                         </div>
-                        <div class="service-status {% if not route.enabled %}disabled{% elif route.status == 'online' %}online{% elif route.status == 'offline' %}offline{% else %}offline{% endif %}">
+                        <div class="service-status {% if not route.enabled %}disabled{% elif route.get('state') == 'UP' %}online{% elif route.get('state') == 'DEGRADED' %}slow{% elif route.get('state') == 'DOWN' %}offline{% elif route.status == 'online' %}online{% elif route.status == 'slow' %}slow{% elif route.status == 'offline' %}offline{% else %}offline{% endif %}">
                             <span class="status-dot"></span>
                             {% if not route.enabled %}
                                 Disabled
+                            {% elif route.get('state') == 'UP' %}
+                                {% if route.get('reason') == 'online' %}
+                                    Online{% if route.get('http_status') %} ({{ route.http_status }}){% endif %}
+                                {% else %}
+                                    {{ route.get('reason', 'Online').title() }}
+                                {% endif %}
+                            {% elif route.get('state') == 'DEGRADED' %}
+                                {% if route.get('reason') == 'slow' %}
+                                    Slow{% if route.get('duration_ms') %} ({{ (route.duration_ms / 1000)|round(1) }}s){% endif %}
+                                {% else %}
+                                    {{ route.get('reason', 'Degraded').title() }}
+                                {% endif %}
+                            {% elif route.get('state') == 'DOWN' %}
+                                {% if route.get('reason') == 'offline_dns' %}
+                                    DOWN — DNS
+                                {% elif route.get('reason') == 'offline_conn' %}
+                                    DOWN — Connect
+                                {% elif route.get('reason') == 'timeout' %}
+                                    DOWN — Timeout
+                                {% elif route.get('reason') == 'error_5xx' %}
+                                    DOWN — 5xx{% if route.get('http_status') %} ({{ route.http_status }}){% endif %}
+                                {% elif route.get('reason') == 'error_exc' %}
+                                    DOWN — Error
+                                {% elif route.get('reason') == 'misconfig' %}
+                                    DOWN — Config
+                                {% else %}
+                                    Offline
+                                {% endif %}
                             {% elif route.status == 'online' %}
                                 Online
                             {% elif route.status == 'slow' %}

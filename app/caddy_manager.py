@@ -6,7 +6,9 @@ import os
 import json
 import logging
 import time
-from typing import List, Dict, Any, Optional
+import socket
+from typing import List, Dict, Any, Optional, Tuple
+from urllib.parse import urlparse
 import requests
 
 log = logging.getLogger(__name__)
@@ -291,9 +293,60 @@ class CaddyManager:
 
         return {"match": [match], "handle": [handler], "terminal": True}
 
+    def classify_service_status(self, url: str, timeout_sec: int = 3, slow_ms: int = 2000) -> Tuple[str, str, Optional[str], Optional[int], Optional[int]]:
+        """
+        Classify service status using a deterministic decision tree.
+        
+        Returns: (state, reason, detail_message, http_status, duration_ms)
+        
+        States: UP, DEGRADED, DOWN, UNKNOWN
+        Reasons: online, slow, error_5xx, timeout, offline_conn, offline_dns, misconfig, error_exc, unknown
+        """
+        # 1) Input sanity
+        try:
+            u = urlparse(url)
+            if not (u.scheme and u.hostname):
+                return ("DOWN", "misconfig", "Invalid URL components: missing scheme or hostname", None, None)
+            # Port validation - use default ports if not specified
+            port = u.port
+            if port is None:
+                port = 443 if u.scheme == 'https' else 80
+        except Exception as e:
+            return ("DOWN", "misconfig", f"URL parse error: {e}", None, None)
+
+        # 2) DNS resolve
+        try:
+            socket.getaddrinfo(u.hostname, port, proto=socket.IPPROTO_TCP)
+        except socket.gaierror as e:
+            return ("DOWN", "offline_dns", f"DNS error: {e}", None, None)
+
+        # 3) TCP connect (fast fail)
+        try:
+            with socket.create_connection((u.hostname, port), timeout=min(timeout_sec, 10)):
+                pass
+        except (ConnectionRefusedError, TimeoutError, OSError) as e:
+            return ("DOWN", "offline_conn", f"TCP connect failed: {e}", None, None)
+
+        # 4) HTTP request
+        try:
+            start = time.perf_counter()
+            resp = requests.get(url, timeout=timeout_sec, allow_redirects=True, verify=False)
+            dur_ms = int((time.perf_counter() - start) * 1000)
+
+            if resp.status_code >= 500:
+                return ("DOWN", "error_5xx", f"HTTP {resp.status_code} in {dur_ms} ms", resp.status_code, dur_ms)
+            if dur_ms > slow_ms:
+                return ("DEGRADED", "slow", f"HTTP {resp.status_code} in {dur_ms} ms", resp.status_code, dur_ms)
+            return ("UP", "online", f"HTTP {resp.status_code} in {dur_ms} ms", resp.status_code, dur_ms)
+
+        except requests.exceptions.Timeout:
+            return ("DOWN", "timeout", f"HTTP timeout after {timeout_sec}s", None, None)
+        except Exception as e:
+            return ("DOWN", "error_exc", f"Unexpected error: {e}", None, None)
+
     def test_connection(self, route: Dict[str, Any]) -> dict:
         """
-        Test connectivity to a backend service.
+        Test connectivity to a backend service using enhanced classification.
 
         Args:
             route: Route dict with fields:
@@ -306,7 +359,7 @@ class CaddyManager:
                 - sni (str) optional, only used to build URL host if provided
 
         Returns:
-            dict with success, status, status_code, response_time or error
+            dict with success, status (legacy), state, reason, status_code, response_time, error, and detail
         """
         target_ip = route["target_ip"]
         target_port = route["target_port"]
@@ -320,39 +373,51 @@ class CaddyManager:
         host_for_url = sni if (protocol == "https" and sni) else target_ip
         target_url = f"{protocol}://{host_for_url}:{target_port}{health_path}"
 
-        # TLS verify logic
-        verify_tls = True
-        if protocol == "https" and insecure_skip_verify:
-            verify_tls = False
-        if "verify_tls" in route:
-            verify_tls = bool(route["verify_tls"])
+        # Get slow threshold from config or use default
+        from config import get_settings
+        settings = get_settings()
+        timeout_sec = min(timeout, settings.http_timeout_sec)
+        slow_ms = settings.slow_threshold_ms
 
-        try:
-            start = time.time()
-            resp = requests.get(
-                target_url, timeout=min(timeout, 10), verify=verify_tls, allow_redirects=True
-            )
-            duration = int((time.time() - start) * 1000)  # ms
+        # Use new classification logic
+        state, reason, detail, http_status, duration_ms = self.classify_service_status(
+            target_url, timeout_sec, slow_ms
+        )
 
-            if resp.status_code < 500:
-                status = "online"
-                if duration > 2000:
-                    status = "slow"
+        # Map state to legacy status for backward compatibility
+        legacy_status_map = {
+            "UP": "online",
+            "DEGRADED": "slow",
+            "DOWN": "offline",
+            "UNKNOWN": "unknown"
+        }
+        
+        # For DOWN state, check reason for more specific legacy status
+        if state == "DOWN":
+            if reason in ["error_5xx", "error_exc"]:
+                legacy_status = "error"
+            elif reason == "timeout":
+                legacy_status = "timeout"
             else:
-                status = "error"
+                legacy_status = "offline"
+        else:
+            legacy_status = legacy_status_map.get(state, "unknown")
 
-            return {
-                "success": True,
-                "status": status,
-                "status_code": resp.status_code,
-                "response_time": duration,
-            }
+        success = state in ["UP", "DEGRADED"]
 
-        except requests.exceptions.Timeout:
-            return {"success": False, "error": "Connection timeout", "status": "timeout"}
+        result = {
+            "success": success,
+            "status": legacy_status,  # Legacy field
+            "state": state,           # New field
+            "reason": reason,         # New field
+            "detail": detail,         # New field
+        }
 
-        except requests.exceptions.ConnectionError:
-            return {"success": False, "error": "Connection refused", "status": "offline"}
+        if http_status is not None:
+            result["status_code"] = http_status
+        if duration_ms is not None:
+            result["response_time"] = duration_ms
+        if not success and detail:
+            result["error"] = detail
 
-        except Exception as e:
-            return {"success": False, "error": str(e), "status": "error"}
+        return result
