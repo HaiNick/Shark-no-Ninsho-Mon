@@ -70,6 +70,21 @@ async function loadRoutes() {
         updateStats(routes);
     } catch (error) {
         Utils.handleError(error, 'Loading routes');
+        
+        // Show error state in UI
+        const tbody = document.getElementById('routes-tbody');
+        if (tbody) {
+            tbody.innerHTML = `
+                <tr>
+                    <td colspan="7" style="text-align: center; padding: 2rem;">
+                        <div style="color: var(--text-secondary);">
+                            <div style="font-size: 3rem; margin-bottom: 1rem;">⚠️</div>
+                            <p>Failed to load routes. Please refresh the page.</p>
+                        </div>
+                    </td>
+                </tr>
+            `;
+        }
     }
 }
 
@@ -123,7 +138,7 @@ function renderRoutes(routesList) {
                     <span class="status-dot"></span>
                     ${badgeText}
                 </span>
-            </td>`;
+            </td>
             <td><span class="route-path">${route.path}</span></td>
             <td>${route.name}</td>
             <td><span class="route-target">${route.protocol}://${route.target_ip}:${route.target_port}${route.target_path || '/'}</span></td>
@@ -156,14 +171,27 @@ function renderRoutes(routesList) {
 // Update Stats
 function updateStats(routesList) {
     const total = routesList.length;
-    const online = routesList.filter(r => r.status === 'online').length;
-    const offline = routesList.filter(r => r.status === 'offline').length;
+    // Handle both old status and new state systems
+    const online = routesList.filter(r => 
+        (r.state === 'UP') || (r.status === 'online')
+    ).length;
+    const offline = routesList.filter(r => 
+        (r.state === 'DOWN') || (r.status === 'offline')
+    ).length;
     const enabled = routesList.filter(r => r.enabled).length;
     
-    document.getElementById('stat-total').textContent = total;
-    document.getElementById('stat-online').textContent = online;
-    document.getElementById('stat-offline').textContent = offline;
-    document.getElementById('stat-enabled').textContent = enabled;
+    const statElements = {
+        total: document.getElementById('stat-total'),
+        online: document.getElementById('stat-online'),
+        offline: document.getElementById('stat-offline'),
+        enabled: document.getElementById('stat-enabled')
+    };
+    
+    // Update stats with null checks
+    if (statElements.total) statElements.total.textContent = total;
+    if (statElements.online) statElements.online.textContent = online;
+    if (statElements.offline) statElements.offline.textContent = offline;
+    if (statElements.enabled) statElements.enabled.textContent = enabled;
 }
 
 // Search/Filter Routes with debouncing
