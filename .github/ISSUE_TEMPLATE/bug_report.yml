@@ -1,0 +1,85 @@
+name: Bug Report
+description: File a bug report to help us improve
+title: "[Bug]: "
+labels: ["bug", "triage"]
+assignees: []
+
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to fill out this bug report!
+
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened?
+      description: Also tell us, what did you expect to happen?
+      placeholder: Tell us what you see!
+    validations:
+      required: true
+
+  - type: dropdown
+    id: version
+    attributes:
+      label: Version
+      description: What version of our software are you running?
+      options:
+        - Latest (main branch)
+        - v1.0.0
+        - Other (please specify in description)
+    validations:
+      required: true
+
+  - type: dropdown
+    id: browsers
+    attributes:
+      label: What browsers are you seeing the problem on?
+      multiple: true
+      options:
+        - Firefox
+        - Chrome
+        - Safari
+        - Microsoft Edge
+        - Other
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Relevant log output
+      description: Please copy and paste any relevant log output. This will be automatically formatted into code, so no need for backticks.
+      render: shell
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to Reproduce
+      description: Please provide detailed steps to reproduce the issue
+      placeholder: |
+        1. Go to '...'
+        2. Click on '....'
+        3. Scroll down to '....'
+        4. See error
+    validations:
+      required: true
+
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment Details
+      description: Please provide details about your environment
+      placeholder: |
+        - OS: [e.g. Windows 11, macOS 12.0, Ubuntu 20.04]
+        - Python version: [e.g. 3.9.7]
+        - Docker version (if applicable): [e.g. 20.10.8]
+    validations:
+      required: false
+
+  - type: checkboxes
+    id: terms
+    attributes:
+      label: Security Policy
+      description: By submitting this issue, you agree to follow our [Security Policy](https://github.com/HaiNick/Shark-no-Ninsho-Mon/blob/main/SECURITY.md)
+      options:
+        - label: I agree to follow this project's Code of Conduct
+          required: true

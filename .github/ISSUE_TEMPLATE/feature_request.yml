@@ -1,0 +1,111 @@
+name: Feature Request
+description: Suggest an idea for this project
+title: "[Feature Request]: "
+labels: ["enhancement", "triage"]
+assignees: []
+
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to suggest a new feature!
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: Is your feature request related to a problem? Please describe.
+      description: A clear and concise description of what the problem is.
+      placeholder: I'm always frustrated when [...]
+    validations:
+      required: false
+
+  - type: textarea
+    id: solution
+    attributes:
+      label: Describe the solution you'd like
+      description: A clear and concise description of what you want to happen.
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Describe alternatives you've considered
+      description: A clear and concise description of any alternative solutions or features you've considered.
+    validations:
+      required: false
+
+  - type: dropdown
+    id: priority
+    attributes:
+      label: Priority Level
+      description: How important is this feature to you?
+      options:
+        - Low - Nice to have
+        - Medium - Would improve workflow
+        - High - Critical for my use case
+    validations:
+      required: true
+
+  - type: dropdown
+    id: category
+    attributes:
+      label: Feature Category
+      description: What category does this feature fall into?
+      options:
+        - User Interface
+        - Security
+        - Performance
+        - API/Backend
+        - Documentation
+        - DevOps/Infrastructure
+        - Other
+
+  - type: textarea
+    id: use-case
+    attributes:
+      label: Use Case
+      description: Describe your specific use case and how this feature would help
+      placeholder: |
+        I need this feature because...
+        It would help me by...
+        Currently I have to...
+    validations:
+      required: true
+
+  - type: textarea
+    id: implementation
+    attributes:
+      label: Implementation Ideas
+      description: If you have ideas about how this could be implemented, please share them
+      placeholder: |
+        This could be implemented by...
+        Technical considerations might include...
+    validations:
+      required: false
+
+  - type: textarea
+    id: additional-context
+    attributes:
+      label: Additional context
+      description: Add any other context or screenshots about the feature request here.
+    validations:
+      required: false
+
+  - type: checkboxes
+    id: terms
+    attributes:
+      label: Code of Conduct
+      description: By submitting this issue, you agree to follow our [Code of Conduct](https://github.com/HaiNick/Shark-no-Ninsho-Mon/blob/main/SECURITY.md)
+      options:
+        - label: I agree to follow this project's Code of Conduct
+          required: true
+
+  - type: checkboxes
+    id: existing
+    attributes:
+      label: Existing Issues
+      description: Please confirm you have checked for existing similar feature requests
+      options:
+        - label: I have searched existing issues to ensure this feature request is not a duplicate
+          required: true
