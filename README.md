@@ -146,33 +146,76 @@ Local setup, testing, code structure, and contributing guidelines.
 
 ```
 Shark-no-Ninsho-Mon/
-├── docker-compose.yml
-├── setup-wizard.py              # Cross-platform configuration wizard
-├── setup_templates/             # Wizard UI assets
-├── generate-secrets.py          # Stand-alone secret generator
+├── .github/                     # GitHub configuration
+│   ├── ISSUE_TEMPLATE/          # Issue templates
+│   ├── copilot-instructions.md  # AI assistant instructions
+│   ├── dependabot.yml           # Dependency updates
+│   └── pull_request_template.md # PR template
+├── app/                         # Flask application
+│   ├── static/
+│   │   ├── css/                 # Stylesheets
+│   │   │   ├── admin.css
+│   │   │   ├── animations.css
+│   │   │   ├── dashboard.css
+│   │   │   ├── emails.css
+│   │   │   ├── shared.css
+│   │   │   └── style.css
+│   │   ├── icons/               # SVG icons
+│   │   └── js/                  # JavaScript
+│   │       ├── admin.js
+│   │       ├── app.js
+│   │       ├── config.js
+│   │       ├── emails.js
+│   │       └── utils.js
+│   ├── templates/               # Jinja2 HTML templates
+│   │   ├── 404.html
+│   │   ├── admin.html
+│   │   ├── base.html
+│   │   ├── emails.html
+│   │   ├── index.html
+│   │   ├── logs.html
+│   │   ├── route_disabled.html
+│   │   └── unauthorized.html
+│   ├── test/                    # Unit tests
+│   │   ├── test_app.py
+│   │   ├── test_caddy_manager.py
+│   │   ├── test_classification.py
+│   │   └── test_routes_db.py
+│   ├── app.py                   # Flask control plane + REST API
+│   ├── caddy_manager.py         # Caddy Admin API client
+│   ├── config.py                # Centralized settings loader
+│   ├── dev.py                   # Local development entry point
+│   ├── Dockerfile               # Production container
+│   ├── requirements.txt         # Python dependencies
+│   └── routes_db.py             # TinyDB route manager
+├── caddy/                       # Caddy configuration
+│   ├── base.json                # Caddy JSON config template
+│   └── Caddyfile                # Base Caddy configuration
 ├── docs/                        # Comprehensive documentation
 │   ├── ARCHITECTURE.md          # System design & request flow
 │   ├── CONFIGURATION.md         # Environment variables & settings
+│   ├── COOKIE_MANAGEMENT.md     # Cookie configuration guide
+│   ├── DEVELOPMENT.md           # Local dev & contributing
 │   ├── OPERATIONS.md            # Deployment & maintenance
-│   ├── TROUBLESHOOTING.md       # Common issues & solutions
-│   └── DEVELOPMENT.md           # Local dev & contributing
-├── app/
-│   ├── app.py                   # Flask control plane + REST API
-│   ├── config.py                # Centralised settings loader
-│   ├── caddy_manager.py         # Caddy Admin API client
-│   ├── routes_db.py             # TinyDB route manager
-│   ├── dev.py                   # Local development entry point
-│   ├── requirements.txt         # Python dependencies
-│   ├── test/                    # Unit tests
-│   ├── templates/               # Jinja templates for UI
-│   └── static/                  # CSS/JS assets
-├── caddy/
-│   ├── Caddyfile                # Base Caddy configuration
-│   └── base.json                # Caddy JSON config template
-├── README.md
-├── CHANGELOG.md
-├── SECURITY.md
-└── LICENSE
+│   └── TROUBLESHOOTING.md       # Common issues & solutions
+├── LICENSES/                    # Third-party licenses
+│   └── Apache-2.0.txt
+├── setup_templates/             # Setup wizard UI
+│   ├── css/
+│   │   └── setup_wizard.css
+│   ├── js/
+│   │   └── setup_wizard.js
+│   └── setup_wizard.html
+├── .env.template                # Environment variables template
+├── .gitignore                   # Git ignore rules
+├── CHANGELOG.md                 # Version history
+├── docker-compose.yml           # Docker services configuration
+├── generate-secrets.py          # Secret generator utility
+├── LICENSE                      # MIT License
+├── README.md                    # This file
+├── SECURITY.md                  # Security policy
+├── setup-wizard.py              # Interactive setup wizard
+└── THIRD_PARTY_NOTICES.md       # Third-party attributions
 ```
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
