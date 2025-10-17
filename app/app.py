@@ -58,6 +58,12 @@ app = Flask(__name__)
 settings = get_settings()
 app.config['SECRET_KEY'] = settings.secret_key
 
+# Configure Flask session cookies
+app.config['SESSION_COOKIE_SECURE'] = settings.session_cookie_secure
+app.config['SESSION_COOKIE_HTTPONLY'] = settings.session_cookie_httponly
+app.config['SESSION_COOKIE_SAMESITE'] = settings.session_cookie_samesite
+app.config['PERMANENT_SESSION_LIFETIME'] = settings.permanent_session_lifetime
+
 # Initialize rate limiter
 # No default limits - apply specific limits only to sensitive endpoints
 limiter = Limiter(

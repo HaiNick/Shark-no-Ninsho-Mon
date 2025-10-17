@@ -218,6 +218,15 @@ OAUTH2_PROXY_CLIENT_SECRET={config['oauth_client_secret']}
 OAUTH2_PROXY_COOKIE_SECRET={config['oauth_cookie_secret']}
 
 # ============================================
+# Cookie Refresh & Expiration Configuration
+# ============================================
+# Cookie expiration time (default: 168h = 7 days)
+OAUTH2_PROXY_COOKIE_EXPIRE={config.get('cookie_expire', '168h')}
+
+# Cookie refresh interval (0 = disabled, or 1m/1h/24h/168h/720h)
+OAUTH2_PROXY_COOKIE_REFRESH={config.get('cookie_refresh', '0')}
+
+# ============================================
 # Tailscale Funnel Configuration
 # ============================================
 FUNNEL_HOST=https://{config['tailscale_hostname']}
@@ -236,6 +245,14 @@ HOST=0.0.0.0
 # Flask Secret Key (for session management)
 # ============================================
 SECRET_KEY={config['flask_secret_key']}
+
+# ============================================
+# Flask Session Configuration
+# ============================================
+SESSION_COOKIE_SECURE={config.get('session_cookie_secure', 'true')}
+SESSION_COOKIE_HTTPONLY={config.get('session_cookie_httponly', 'true')}
+SESSION_COOKIE_SAMESITE={config.get('session_cookie_samesite', 'Lax')}
+PERMANENT_SESSION_LIFETIME={config.get('permanent_session_lifetime', '604800')}
 """
 
             with open(ConfigManager.ENV_FILE, 'w') as f:

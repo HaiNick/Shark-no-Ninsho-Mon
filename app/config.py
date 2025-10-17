@@ -28,6 +28,11 @@ class Settings:
     upstream_ssl_verify: bool
     http_timeout_sec: int
     slow_threshold_ms: int
+    # Flask session configuration
+    session_cookie_secure: bool
+    session_cookie_httponly: bool
+    session_cookie_samesite: str
+    permanent_session_lifetime: int  # in seconds
 
 
 @lru_cache()
@@ -67,6 +72,18 @@ def get_settings() -> Settings:
         slow_threshold_ms = 2000
     slow_threshold_ms = max(100, slow_threshold_ms)  # Minimum 100ms
 
+    # Flask session configuration
+    session_cookie_secure = _to_bool(env.get("SESSION_COOKIE_SECURE"), default=True)
+    session_cookie_httponly = _to_bool(env.get("SESSION_COOKIE_HTTPONLY"), default=True)
+    session_cookie_samesite = env.get("SESSION_COOKIE_SAMESITE", "Lax")
+    
+    try:
+        # Default: 7 days (604800 seconds)
+        permanent_session_lifetime = int(env.get("PERMANENT_SESSION_LIFETIME", 604800))
+    except (TypeError, ValueError):
+        permanent_session_lifetime = 604800
+    permanent_session_lifetime = max(3600, permanent_session_lifetime)  # Minimum 1 hour
+
     return Settings(
         secret_key=secret_key,
         routes_db_path=routes_db_path,
@@ -76,4 +93,9 @@ def get_settings() -> Settings:
         upstream_ssl_verify=upstream_ssl_verify,
         http_timeout_sec=http_timeout_sec,
         slow_threshold_ms=slow_threshold_ms,
+        session_cookie_secure=session_cookie_secure,
+        session_cookie_httponly=session_cookie_httponly,
+        session_cookie_samesite=session_cookie_samesite,
+        permanent_session_lifetime=permanent_session_lifetime,
     )
+
