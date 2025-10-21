@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Shark Route Manager - Setup Wizard</title>
-    <link rel="stylesheet" href="css/setup_wizard.css">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/setup_wizard.css') }}">
 </head>
 <body>
     <div class="container">
@@ -184,6 +184,6 @@
         </div>
     </div>
 
-    <script src="js/setup_wizard.js"></script>
+    <script src="{{ url_for('static', filename='js/setup_wizard.js') }}"></script>
 </body>
 </html>
