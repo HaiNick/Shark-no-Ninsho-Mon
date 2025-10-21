@@ -15,7 +15,7 @@ from pathlib import Path
 from flask import Flask, render_template, request, jsonify
 
 app = Flask(__name__, template_folder='setup_templates',
-            static_folder='setup_static')
+            static_folder='setup_templates')
 
 # Determine OS
 IS_WINDOWS = platform.system() == 'Windows'
