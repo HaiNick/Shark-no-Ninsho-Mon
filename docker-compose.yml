@@ -85,7 +85,7 @@
 
   # New: Caddy edge proxy with Admin API enabled
   caddy:
-    image: caddy:2.8-alpine
+    image: caddy:2.10-alpine
     restart: unless-stopped
     volumes:
       - ./caddy/Caddyfile:/etc/caddy/Caddyfile:ro
