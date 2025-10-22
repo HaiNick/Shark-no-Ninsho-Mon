@@ -191,7 +191,24 @@ docker volume prune
 
 ## File permission issues
 
-### routes.json or emails.txt owned by root
+### routes.json in project root (should not exist)
+
+**Symptom**: A `routes.json` file exists in your project root directory
+
+**Cause**: Old setup or manually running the Flask app on the host
+
+**Why this is wrong**: With Caddy's Admin API, routes are managed dynamically and stored in the Docker volume at `/app/data/routes.json`, NOT in your project root. The setup wizard no longer creates this file in the project root.
+
+**Solution**:
+```bash
+# Remove the file - it's not used
+sudo rm routes.json
+
+# The Flask app will use the database in the Docker volume instead
+docker compose restart app
+```
+
+### emails.txt or .env owned by root
 
 **Symptom**: Files in your project root are owned by root, preventing the Docker container from accessing them
 
@@ -200,7 +217,7 @@ docker volume prune
 **Diagnostic**:
 ```bash
 # Linux / macOS - Check file ownership
-ls -la routes.json emails.txt .env
+ls -la emails.txt .env
 
 # Check inside container
 docker compose exec app id
@@ -218,7 +235,7 @@ sudo .venv/bin/python3 setup-wizard.py
 ```
 
 The wizard will:
-- Create `.env`, `emails.txt`, and `routes.json` files
+- Create `.env` and `emails.txt` files
 - Automatically change ownership to your actual user (not root)
 - Add `USER_ID` and `GROUP_ID` to `.env` for Docker user matching
 - Set proper file permissions (644)
@@ -236,7 +253,10 @@ If you already have root-owned files, fix them manually:
 
 ```bash
 # Fix file ownership
-sudo chown $USER:$USER .env emails.txt routes.json
+sudo chown $USER:$USER .env emails.txt
+
+# Remove old routes.json if it exists (no longer needed in project root)
+sudo rm -f routes.json
 
 # Add user IDs to .env (if not present)
 echo "USER_ID=$(id -u)" >> .env
@@ -250,7 +270,7 @@ docker compose up -d
 
 ### Container cannot read/write files (Permission Denied)
 
-**Symptom**: Flask container logs show "Permission denied" when accessing `emails.txt` or `routes.json`
+**Symptom**: Flask container logs show "Permission denied" when accessing `emails.txt`
 
 **Common scenario**: This happens when you run `setup-wizard.py` with `sudo`, which creates files owned by root, but the Docker container runs as `appuser`.
 
