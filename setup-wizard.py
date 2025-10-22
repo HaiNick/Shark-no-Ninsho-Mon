@@ -484,11 +484,13 @@ def api_docker_start():
         routes_file = Path('routes.json')
         if not routes_file.exists():
             routes_file.write_text('{"_default": {}}', encoding='utf-8')
+            fix_file_permissions(routes_file)
         elif routes_file.is_dir():
             # If it's a directory, remove it and create as file
             try:
                 routes_file.rmdir()
                 routes_file.write_text('{"_default": {}}', encoding='utf-8')
+                fix_file_permissions(routes_file)
             except OSError:
                 # Directory not empty, don't remove
                 pass
@@ -496,11 +498,13 @@ def api_docker_start():
         emails_file = Path('emails.txt')
         if not emails_file.exists():
             emails_file.write_text('# Add authorized emails here (one per line)\n', encoding='utf-8')
+            fix_file_permissions(emails_file)
         elif emails_file.is_dir():
             # If it's a directory, remove it and create as file
             try:
                 emails_file.rmdir()
                 emails_file.write_text('# Add authorized emails here (one per line)\n', encoding='utf-8')
+                fix_file_permissions(emails_file)
             except OSError:
                 # Directory not empty, don't remove
                 pass
@@ -741,6 +745,7 @@ def main():
     routes_file = Path('routes.json')
     if not routes_file.exists():
         routes_file.write_text('{"_default": {}}', encoding='utf-8')
+        fix_file_permissions(routes_file)
         print("  Created routes.json")
     elif routes_file.is_dir():
         print("  WARNING: routes.json exists as a directory! Please remove it manually.")
@@ -748,6 +753,7 @@ def main():
     emails_file = Path('emails.txt')
     if not emails_file.exists():
         emails_file.write_text('# Add authorized emails here (one per line)\n', encoding='utf-8')
+        fix_file_permissions(emails_file)
         print("  Created emails.txt")
     elif emails_file.is_dir():
         print("  WARNING: emails.txt exists as a directory! Please remove it manually.")

@@ -191,9 +191,66 @@ docker volume prune
 
 ## File permission issues
 
+### routes.json or emails.txt owned by root
+
+**Symptom**: Files in your project root are owned by root, preventing the Docker container from accessing them
+
+**Cause**: Running `setup-wizard.py` with `sudo` creates files owned by root, but the Docker container runs as `appuser`
+
+**Diagnostic**:
+```bash
+# Linux / macOS - Check file ownership
+ls -la routes.json emails.txt .env
+
+# Check inside container
+docker compose exec app id
+docker compose exec app ls -la /emails.txt
+```
+
+If files are owned by `root:root` but container user is `appuser` (UID 1000), there's a mismatch.
+
+**Solution 1: Automatic (Fresh Setup)**
+
+The setup wizard now automatically handles permissions when run with `sudo`:
+
+```bash
+sudo .venv/bin/python3 setup-wizard.py
+```
+
+The wizard will:
+- Create `.env`, `emails.txt`, and `routes.json` files
+- Automatically change ownership to your actual user (not root)
+- Add `USER_ID` and `GROUP_ID` to `.env` for Docker user matching
+- Set proper file permissions (644)
+
+Then rebuild containers:
+```bash
+docker compose down
+docker compose build --no-cache
+docker compose up -d
+```
+
+**Solution 2: Manual Fix (Existing Installation)**
+
+If you already have root-owned files, fix them manually:
+
+```bash
+# Fix file ownership
+sudo chown $USER:$USER .env emails.txt routes.json
+
+# Add user IDs to .env (if not present)
+echo "USER_ID=$(id -u)" >> .env
+echo "GROUP_ID=$(id -g)" >> .env
+
+# Rebuild with matching user IDs
+docker compose down
+docker compose build --no-cache
+docker compose up -d
+```
+
 ### Container cannot read/write files (Permission Denied)
 
-**Symptom**: Flask container logs show "Permission denied" when accessing `emails.txt` or writing to `routes.json`
+**Symptom**: Flask container logs show "Permission denied" when accessing `emails.txt` or `routes.json`
 
 **Common scenario**: This happens when you run `setup-wizard.py` with `sudo`, which creates files owned by root, but the Docker container runs as `appuser`.
 
