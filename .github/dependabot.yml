@@ -45,8 +45,8 @@ updates:
       prefix: "docker"
       include: "scope"
 
-  # Compose file(s) at repo root
-  - package-ecosystem: "docker"
+  # Docker Compose at repo root
+  - package-ecosystem: "docker-compose"
     directory: "/"
     schedule:
       interval: "weekly"
@@ -63,7 +63,7 @@ updates:
       - "docker"
       - "compose"
     commit-message:
-      prefix: "docker"
+      prefix: "compose"
       include: "scope"
 
   # Enable when ready:

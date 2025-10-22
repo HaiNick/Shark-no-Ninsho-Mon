@@ -6,8 +6,11 @@ We release patches for security vulnerabilities in the following versions:
 
 | Version | Supported          |
 | ------- | ------------------ |
-| 2.0.x   | :white_check_mark: |
+| 3.0.x   | :white_check_mark: |
+| 2.0.x   | :x:                |
 | 1.0.x   | :x:                |
+
+**Note**: We use Dependabot for automated dependency updates. Security patches are applied weekly for Python dependencies and Docker images.
 
 ## Security Features
 
@@ -48,6 +51,11 @@ We release patches for security vulnerabilities in the following versions:
    - Unauthorized access attempt tracking
    - Incident ID generation for security events
 
+8. **Automated Dependency Management**
+   - Dependabot configured for weekly security updates
+   - Python (pip), Docker, and Docker Compose dependencies monitored
+   - Automated pull requests for vulnerability patches
+
 ## Reporting a Vulnerability
 
 We take security seriously. If you discover a security vulnerability, please follow these steps:
@@ -58,13 +66,16 @@ Security vulnerabilities should be reported privately to avoid exploitation.
 
 ### 2. Contact Us
 
-- **Email**: [Your security contact email]
+- **Primary**: Create a private security advisory on GitHub (preferred)
+  - Go to the Security tab → Report a vulnerability
+- **Email**: [Create an issue with "SECURITY" label for non-sensitive reports]
 - **Subject**: "SECURITY: [Brief description]"
 - **Include**:
   - Description of the vulnerability
   - Steps to reproduce
   - Potential impact
   - Suggested fix (if any)
+  - Affected versions
 
 ### 3. Response Timeline
 
@@ -124,17 +135,26 @@ chmod 640 /app/access.log
 
 ### Regular Updates
 
-1. **Update Dependencies**
+1. **Automated Dependency Updates**
    ```bash
-   # Check for updates monthly
+   # Dependabot runs weekly and creates PRs automatically
+   # Review and merge Dependabot PRs promptly
+   
+   # Manual check (if needed)
    pip list --outdated
-   docker pull quay.io/oauth2-proxy/oauth2-proxy:latest
+   docker compose pull
    ```
 
 2. **Monitor Security Advisories**
-   - Watch this repository for security updates
+   - GitHub Security Advisories (enabled for this repo)
+   - Dependabot alerts for vulnerable dependencies
    - Subscribe to Flask security announcements
-   - Check OAuth2-Proxy security notices
+   - Check OAuth2-Proxy and Caddy security notices
+
+3. **Docker Image Updates**
+   - Dependabot monitors base images in Dockerfile
+   - Service images in docker-compose.yml tracked automatically
+   - Review and test updates before merging
 
 ### Monitoring
 
@@ -166,6 +186,8 @@ Before deploying to production:
 - [ ] Configured backup strategy
 - [ ] Documented incident response plan
 - [ ] Set up monitoring/alerting
+- [ ] Enabled Dependabot security alerts
+- [ ] Reviewed and configured `.github/dependabot.yml`
 
 ## Known Security Considerations
 
@@ -221,11 +243,26 @@ All authentication attempts are logged with:
 
 ## Security Updates
 
-Subscribe to security updates:
+### Automated Updates
+
+This repository uses **Dependabot** for automated security updates:
+
+- **Python dependencies**: Checked weekly (Mondays at 10:00 Europe/Berlin)
+- **Docker images**: Checked weekly for both Dockerfile and docker-compose.yml
+- **GitHub Actions**: Ready to enable when needed
+
+Dependabot will automatically:
+1. Detect vulnerable dependencies
+2. Create pull requests with updates
+3. Group related updates to reduce PR noise
+4. Provide changelog and release notes
+
+### Manual Monitoring
 
 1. Watch this repository for releases
-2. Enable GitHub security alerts
-3. Follow [@HaiNick](https://github.com/HaiNick) for announcements
+2. Enable GitHub security alerts (Repository Settings → Security & analysis)
+3. Review Dependabot PRs promptly
+4. Follow [@HaiNick](https://github.com/HaiNick) for announcements
 
 ## Credits
 
@@ -235,5 +272,5 @@ We thank the following for responsible disclosure:
 
 ---
 
-**Last Updated**: 2025-09-30  
-**Version**: 2.0.0
+**Last Updated**: 2025-10-22  
+**Version**: 3.0.0
