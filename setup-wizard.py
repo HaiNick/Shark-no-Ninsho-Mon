@@ -23,6 +23,38 @@ IS_LINUX = platform.system() == 'Linux'
 IS_MAC = platform.system() == 'Darwin'
 
 
+def fix_file_permissions(filepath):
+    """
+    Fix file permissions when running as root/sudo.
+    Changes ownership to the user who invoked sudo (if applicable).
+    """
+    if IS_WINDOWS:
+        return  # Not applicable on Windows
+    
+    try:
+        # Get the actual user who invoked sudo
+        sudo_user = os.environ.get('SUDO_USER')
+        if not sudo_user or os.geteuid() != 0:
+            # Not running as sudo, no need to fix permissions
+            return
+        
+        # Get the UID and GID of the original user
+        import pwd
+        pw_record = pwd.getpwnam(sudo_user)
+        user_uid = pw_record.pw_uid
+        user_gid = pw_record.pw_gid
+        
+        # Change ownership to the original user
+        os.chown(filepath, user_uid, user_gid)
+        
+        # Set permissions to 644 (rw-r--r--)
+        os.chmod(filepath, 0o644)
+        
+    except Exception as e:
+        print(f"Warning: Could not fix permissions for {filepath}: {e}")
+        # Don't fail the setup, just warn
+
+
 class SystemCheck:
     """System requirements checker"""
 
@@ -255,8 +287,36 @@ SESSION_COOKIE_SAMESITE={config.get('session_cookie_samesite', 'Lax')}
 PERMANENT_SESSION_LIFETIME={config.get('permanent_session_lifetime', '604800')}
 """
 
+            # Add USER_ID and GROUP_ID on Linux/macOS
+            if not IS_WINDOWS:
+                try:
+                    import pwd
+                    # Get the actual user who invoked sudo (if applicable)
+                    sudo_user = os.environ.get('SUDO_USER')
+                    if sudo_user:
+                        pw_record = pwd.getpwnam(sudo_user)
+                        user_id = pw_record.pw_uid
+                        group_id = pw_record.pw_gid
+                    else:
+                        user_id = os.getuid()
+                        group_id = os.getgid()
+                    
+                    env_content += f"""
+# ============================================
+# Docker User/Group Configuration
+# ============================================
+# Set to match host user to avoid permission issues
+USER_ID={user_id}
+GROUP_ID={group_id}
+"""
+                except Exception as e:
+                    print(f"Warning: Could not determine user/group IDs: {e}")
+
             with open(ConfigManager.ENV_FILE, 'w') as f:
                 f.write(env_content)
+
+            # Fix permissions if running as sudo
+            fix_file_permissions(ConfigManager.ENV_FILE)
 
             return True
         except Exception as e:
@@ -287,6 +347,10 @@ PERMANENT_SESSION_LIFETIME={config.get('permanent_session_lifetime', '604800')}
                             content += f"{email.strip()}\n"
             
             emails_file.write_text(content, encoding='utf-8')
+            
+            # Fix permissions if running as sudo
+            fix_file_permissions(emails_file)
+            
             return True
         except Exception as e:
             print(f"Error creating emails.txt file: {e}")

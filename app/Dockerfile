@@ -1,7 +1,12 @@
 FROM python:3.12-slim
 
-# Create a non-root user
-RUN groupadd -r appuser && useradd -r -g appuser appuser
+# Accept build arguments for user/group IDs (optional, for matching host user)
+ARG USER_ID=1000
+ARG GROUP_ID=1000
+
+# Create a non-root user with specified UID/GID
+RUN groupadd -r -g ${GROUP_ID} appuser && \
+    useradd -r -u ${USER_ID} -g appuser appuser
 
 WORKDIR /app
 

@@ -83,6 +83,12 @@ pip install flask
 python setup-wizard.py
 ```
 
+**Note for Linux users**: If you need to run with `sudo` (for Docker checks), the wizard automatically handles file permissions:
+```bash
+sudo .venv/bin/python3 setup-wizard.py
+```
+Files created will be owned by your actual user (not root), and the `.env` will include your user/group IDs for proper Docker volume permissions.
+
 Open your browser to [http://localhost:8080](http://localhost:8080) (or `http://<your-ip>:8080` from another device on your LAN) and follow the guided checks:
 
 1. Confirm Docker, Docker Compose, and Tailscale are installed and running.
@@ -133,7 +139,7 @@ Complete reference for environment variables, OAuth2 providers, and advanced set
 Production deployment, monitoring, logging, backup/restore, and maintenance.
 
 ### [Troubleshooting](docs/TROUBLESHOOTING.md)
-Common issues, diagnostic steps, and solutions.
+Common issues, diagnostic steps, and solutions (including Docker volume permission fixes).
 
 ### [Development](docs/DEVELOPMENT.md)
 Local setup, testing, code structure, and contributing guidelines.

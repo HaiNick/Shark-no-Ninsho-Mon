@@ -191,6 +191,125 @@ docker volume prune
 
 ## File permission issues
 
+### Container cannot read/write files (Permission Denied)
+
+**Symptom**: Flask container logs show "Permission denied" when accessing `emails.txt` or writing to `routes.json`
+
+**Common scenario**: This happens when you run `setup-wizard.py` with `sudo`, which creates files owned by root, but the Docker container runs as `appuser`.
+
+**Diagnostic**:
+```bash
+# Linux / macOS - Check file ownership
+ls -la .env emails.txt
+
+# Check inside container
+docker compose exec app id
+docker compose exec app ls -la /emails.txt
+```
+
+If files are owned by `root:root` but container user is `appuser` (UID 1000), there's a mismatch.
+
+#### Solution 1: Automatic (Fresh Setup)
+
+The setup wizard now automatically handles permissions when run with `sudo`:
+
+```bash
+sudo .venv/bin/python3 setup-wizard.py
+```
+
+The wizard will:
+- Create `.env` and `emails.txt` files
+- Automatically change ownership to your actual user (not root)
+- Add `USER_ID` and `GROUP_ID` to `.env` for Docker user matching
+- Set proper file permissions (644)
+
+Then rebuild containers:
+```bash
+docker compose down
+docker compose build --no-cache
+docker compose up -d
+```
+
+#### Solution 2: Manual Fix (Existing Installation)
+
+If you already have root-owned files, fix them manually:
+
+```bash
+# Fix file ownership
+sudo chown $USER:$USER .env emails.txt
+
+# Add user IDs to .env (if not present)
+echo "USER_ID=$(id -u)" >> .env
+echo "GROUP_ID=$(id -g)" >> .env
+
+# Rebuild with matching user IDs
+docker compose down
+docker compose build --no-cache
+docker compose up -d
+```
+
+#### How It Works
+
+When you run the setup wizard with `sudo`:
+
+1. The wizard detects the `SUDO_USER` environment variable (your actual username)
+2. Looks up that user's UID and GID (e.g., 1000:1000)
+3. Changes file ownership using `os.chown()` back to your user
+4. Adds `USER_ID` and `GROUP_ID` to `.env`
+5. Docker builds the container with matching UID/GID
+6. The `appuser` inside the container has the same numeric ID as your host user
+7. No permission conflicts on volume mounts
+
+#### Verify It Works
+
+```bash
+# Check file ownership (should show your username, not root)
+ls -la .env emails.txt
+
+# Expected output:
+# -rw-r--r-- 1 youruser youruser 1234 Oct 22 10:30 .env
+# -rw-r--r-- 1 youruser youruser  144 Oct 22 10:30 emails.txt
+
+# Check .env contains user IDs
+grep -E "USER_ID|GROUP_ID" .env
+
+# Expected output:
+# USER_ID=1000
+# GROUP_ID=1000
+
+# Check container user matches
+docker compose exec app id
+
+# Expected output:
+# uid=1000(appuser) gid=1000(appuser) groups=1000(appuser)
+
+# Test file access in container
+docker compose exec app cat /emails.txt
+```
+
+#### Named Volume Permissions
+
+If the named volume (`routes_data`) has wrong permissions:
+
+```bash
+# Option 1: Remove and recreate (WARNING: deletes data)
+docker compose down -v
+docker compose up -d --build
+
+# Option 2: Fix existing volume permissions (advanced)
+# First, find the volume name
+docker volume ls | grep routes_data
+
+# Then fix permissions (replace 1000:1000 with your USER_ID:GROUP_ID)
+docker run --rm -v shark-no-ninsho-mon_routes_data:/data alpine chown -R 1000:1000 /data
+```
+
+#### Platform Notes
+
+- **Linux**: Full support, automatically detects and fixes permissions
+- **macOS**: Full support (though `sudo` less commonly needed for Docker)
+- **Windows**: Not applicable (Docker Desktop handles permissions differently)
+
 ### routes.json or emails.txt created as directories
 
 **Symptom**: Flask fails to start with "Is a directory" error
