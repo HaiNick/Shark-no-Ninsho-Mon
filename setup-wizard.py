@@ -11,6 +11,7 @@ import secrets
 import base64
 import platform
 import re
+import stat
 from pathlib import Path
 from flask import Flask, render_template, request, jsonify
 
@@ -23,32 +24,71 @@ IS_LINUX = platform.system() == 'Linux'
 IS_MAC = platform.system() == 'Darwin'
 
 
-def fix_file_permissions(filepath):
+def fix_file_permissions(filepath, recursive=False):
     """
-    Fix file permissions when running as root/sudo.
+    Fix file/directory permissions when running as root/sudo.
     Changes ownership to the user who invoked sudo (if applicable).
+    
+    Args:
+        filepath: Path to fix (string or Path object)
+        recursive: If True and filepath is a directory, fix contents recursively
     """
     if IS_WINDOWS:
         return  # Not applicable on Windows
     
     try:
-        # Get the actual user who invoked sudo
-        sudo_user = os.environ.get('SUDO_USER')
-        if not sudo_user or os.geteuid() != 0:
-            # Not running as sudo, no need to fix permissions
+        # Check if running as root
+        if os.geteuid() != 0:
+            return  # Not running as sudo, no need to fix permissions
+        
+        # Get UID/GID - prefer numeric env vars, fallback to SUDO_USER lookup
+        try:
+            user_uid = int(os.environ.get('SUDO_UID', -1))
+            user_gid = int(os.environ.get('SUDO_GID', -1))
+            
+            if user_uid == -1 or user_gid == -1:
+                # Fallback to SUDO_USER lookup
+                sudo_user = os.environ.get('SUDO_USER')
+                if not sudo_user:
+                    return  # No sudo context found
+                
+                import pwd
+                pw_record = pwd.getpwnam(sudo_user)
+                user_uid = pw_record.pw_uid
+                user_gid = pw_record.pw_gid
+        except (ValueError, KeyError, ImportError):
+            return  # Cannot determine user
+        
+        # Convert to Path object
+        path = Path(filepath)
+        
+        # Use lstat to not follow symlinks
+        stat_info = path.lstat()
+        
+        # Skip symlinks for security
+        if stat.S_ISLNK(stat_info.st_mode):
+            print(f"  Skipping symlink: {filepath}")
             return
         
-        # Get the UID and GID of the original user
-        import pwd
-        pw_record = pwd.getpwnam(sudo_user)
-        user_uid = pw_record.pw_uid
-        user_gid = pw_record.pw_gid
+        # Change ownership (don't follow symlinks)
+        os.chown(filepath, user_uid, user_gid, follow_symlinks=False)
         
-        # Change ownership to the original user
-        os.chown(filepath, user_uid, user_gid)
-        
-        # Set permissions to 644 (rw-r--r--)
-        os.chmod(filepath, 0o644)
+        # Set permissions based on file type
+        if stat.S_ISDIR(stat_info.st_mode):
+            # Directory: 755 (rwxr-xr-x)
+            os.chmod(filepath, 0o755, follow_symlinks=False)
+            
+            # Recursively fix directory contents if requested
+            if recursive:
+                try:
+                    for child in path.iterdir():
+                        fix_file_permissions(child, recursive=True)
+                except PermissionError:
+                    pass  # Skip inaccessible directories
+        else:
+            # Regular file: 644 (rw-r--r--)
+            # Note: This may break executables, but setup wizard creates config files only
+            os.chmod(filepath, 0o644, follow_symlinks=False)
         
     except Exception as e:
         print(f"Warning: Could not fix permissions for {filepath}: {e}")
@@ -736,6 +776,20 @@ def main():
         print("  Created emails.txt")
     elif emails_file.is_dir():
         print("  WARNING: emails.txt exists as a directory! Please remove it manually.")
+    
+    # Create app/data directory and routes.json
+    app_data_dir = Path('app/data')
+    if not app_data_dir.exists():
+        app_data_dir.mkdir(parents=True, exist_ok=True)
+        fix_file_permissions(app_data_dir)
+        print("  Created app/data directory")
+    
+    routes_json = app_data_dir / 'routes.json'
+    if not routes_json.exists():
+        routes_json.write_text('{"_default": {}}', encoding='utf-8')
+        fix_file_permissions(routes_json)
+        print("  Created app/data/routes.json")
+    
     print()
 
     # Start Flask server

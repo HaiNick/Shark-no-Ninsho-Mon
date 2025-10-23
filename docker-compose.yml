@@ -12,7 +12,7 @@
       - "8000:8000"         # Expose to LAN for direct access
     volumes:
       - ./emails.txt:/emails.txt:rw
-      - routes_data:/app/data  # Persist route configuration via named volume
+      - ./app/data:/app/data  # Persist route configuration via bind mount (local directory)
     environment:
       - FLASK_ENV=production
       - EMAILS_FILE=/emails.txt
@@ -105,4 +105,4 @@
 volumes:
   caddy_data:
   caddy_config:
-  routes_data:  # Named volume for app data persistence
+  # routes_data volume removed - now using bind mount at ./data

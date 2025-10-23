@@ -4,6 +4,12 @@
 .env.*.local
 app/.env
 
+# Data directories (routes, persistent storage)
+data/
+app/data/
+routes.json
+app/routes.json
+
 # Production security - never commit these files
 admin.py
 admin_*.py
