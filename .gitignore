@@ -10,6 +10,9 @@ app/data/
 routes.json
 app/routes.json
 
+# User authorization files (contains email addresses)
+emails.txt
+
 # Production security - never commit these files
 admin.py
 admin_*.py
