@@ -10,12 +10,14 @@ import os
 _log = logging.getLogger(__name__)
 
 
-def _to_bool(value: object, default: bool = False) -> bool:
-    """Convert environment values to booleans."""
+def parse_bool(value: object, default: bool = False) -> bool:
+    """Best-effort boolean coercion for env vars and JSON payloads."""
     if value is None:
         return default
     if isinstance(value, bool):
         return value
+    if isinstance(value, (int, float)):
+        return value != 0
     return str(value).strip().lower() in {"1", "true", "t", "yes", "on"}
 
 
@@ -58,7 +60,7 @@ def get_settings() -> Settings:
     default_emails_path = root_dir / "emails.txt"
     emails_file = env.get("EMAILS_FILE", str(default_emails_path))
 
-    health_check_enabled = _to_bool(env.get("HEALTH_CHECK_ENABLED"), default=True)
+    health_check_enabled = parse_bool(env.get("HEALTH_CHECK_ENABLED"), default=True)
 
     try:
         interval = int(env.get("HEALTH_CHECK_INTERVAL", 300))
@@ -66,7 +68,7 @@ def get_settings() -> Settings:
         interval = 300
     health_check_interval = max(0, interval)
 
-    upstream_ssl_verify = _to_bool(env.get("UPSTREAM_SSL_VERIFY"), default=False)
+    upstream_ssl_verify = parse_bool(env.get("UPSTREAM_SSL_VERIFY"), default=False)
 
     try:
         http_timeout_sec = int(env.get("HTTP_TIMEOUT_SEC", 3))
@@ -81,8 +83,8 @@ def get_settings() -> Settings:
     slow_threshold_ms = max(100, slow_threshold_ms)  # Minimum 100ms
 
     # Flask session configuration
-    session_cookie_secure = _to_bool(env.get("SESSION_COOKIE_SECURE"), default=True)
-    session_cookie_httponly = _to_bool(env.get("SESSION_COOKIE_HTTPONLY"), default=True)
+    session_cookie_secure = parse_bool(env.get("SESSION_COOKIE_SECURE"), default=True)
+    session_cookie_httponly = parse_bool(env.get("SESSION_COOKIE_HTTPONLY"), default=True)
     session_cookie_samesite = env.get("SESSION_COOKIE_SAMESITE", "Lax")
     
     try:

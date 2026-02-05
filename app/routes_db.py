@@ -9,6 +9,7 @@ import ipaddress
 import re
 import threading
 from pathlib import Path
+from config import parse_bool
 
 
 class RouteManager:
@@ -51,10 +52,10 @@ class RouteManager:
         target_port = self.validate_port(target_port)
         protocol = self.validate_protocol(protocol)
         timeout = self.validate_timeout(timeout)
-        preserve_host = self._coerce_bool(preserve_host)
-        websocket = self._coerce_bool(websocket)
-        enabled = self._coerce_bool(enabled)
-        health_check = self._coerce_bool(health_check)
+        preserve_host = parse_bool(preserve_host)
+        websocket = parse_bool(websocket)
+        enabled = parse_bool(enabled)
+        health_check = parse_bool(health_check)
         target_path = str(target_path).strip()
         
         # Check for duplicate path
@@ -279,16 +280,16 @@ class RouteManager:
             sanitized['timeout'] = self.validate_timeout(updates['timeout'])
 
         if 'preserve_host' in updates:
-            sanitized['preserve_host'] = self._coerce_bool(updates['preserve_host'])
+            sanitized['preserve_host'] = parse_bool(updates['preserve_host'])
 
         if 'websocket' in updates:
-            sanitized['websocket'] = self._coerce_bool(updates['websocket'])
+            sanitized['websocket'] = parse_bool(updates['websocket'])
 
         if 'enabled' in updates:
-            sanitized['enabled'] = self._coerce_bool(updates['enabled'])
+            sanitized['enabled'] = parse_bool(updates['enabled'])
 
         if 'health_check' in updates:
-            sanitized['health_check'] = self._coerce_bool(updates['health_check'])
+            sanitized['health_check'] = parse_bool(updates['health_check'])
 
         if 'status' in updates:
             sanitized['status'] = str(updates['status'])
@@ -316,13 +317,4 @@ class RouteManager:
 
         return sanitized
 
-    @staticmethod
-    def _coerce_bool(value) -> bool:
-        """Coerce typical truthy/falsey JSON values into booleans."""
-        if isinstance(value, bool):
-            return value
-        if value is None:
-            return False
-        if isinstance(value, (int, float)):
-            return value != 0
-        return str(value).strip().lower() in {'1', 'true', 't', 'yes', 'on'}
+

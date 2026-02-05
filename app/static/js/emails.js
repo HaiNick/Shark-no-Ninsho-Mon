@@ -120,7 +120,7 @@ function renderEmails(emailList) {
                             <button class="btn-icon edit" onclick="editEmail('${email}')" title="Edit email">
                                 <img src="/static/icons/edit.svg" alt="Edit" style="width: 18px; height: 18px;" aria-hidden="true">
                             </button>
-                            <button class="btn-icon delete" onclick="confirmRemoveEmail('${email}')" title="Remove email">
+                            <button class="btn-icon delete" onclick="confirmRemoveEmail('${email}', event)" title="Remove email">
                                 <img src="/static/icons/delete.svg" alt="Delete" style="width: 18px; height: 18px;" aria-hidden="true">
                             </button>
                         ` : `
@@ -293,16 +293,16 @@ async function handleEmailSubmit(event) {
 }
 
 // Confirm Remove Email
-function confirmRemoveEmail(email) {
+function confirmRemoveEmail(email, event) {
     if (confirm(`Are you sure you want to remove "${email}" from authorized users?\n\nThis user will lose access to the application.`)) {
-        removeEmail(email);
+        removeEmail(email, event);
     }
 }
 
 // Remove Email
-async function removeEmail(email) {
+async function removeEmail(email, event) {
     // Find the delete button and add loading state
-    const deleteBtn = event.target?.closest('button');
+    const deleteBtn = event?.target?.closest('button');
     let originalContent;
     if (deleteBtn) {
         originalContent = deleteBtn.innerHTML;

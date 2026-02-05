@@ -16,7 +16,7 @@ from typing import Any, Callable, Dict, Set, Tuple
 import collections
 import re
 
-from config import get_settings
+from config import get_settings, parse_bool
 
 # Load environment variables from .env file
 load_dotenv()
@@ -104,17 +104,6 @@ def is_valid_email(email: str) -> bool:
         return False
     pattern = r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$'
     return re.match(pattern, email.strip()) is not None
-
-
-def parse_bool(value: Any, default: bool = False) -> bool:
-    """Best effort boolean parsing for JSON payloads."""
-    if value is None:
-        return default
-    if isinstance(value, bool):
-        return value
-    if isinstance(value, (int, float)):
-        return value != 0
-    return str(value).strip().lower() in {'1', 'true', 't', 'yes', 'on'}
 
 
 def _sync_caddy() -> None:

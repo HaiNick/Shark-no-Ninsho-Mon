@@ -152,13 +152,13 @@ function renderRoutes(routesList) {
             </td>
             <td>
                 <div class="action-buttons">
-                    <button class="btn-icon test" onclick="testRoute('${route.id}')" title="Test Connection" data-route-id="${route.id}">
+                    <button class="btn-icon test" onclick="testRoute('${route.id}', event)" title="Test Connection" data-route-id="${route.id}">
                         <img src="/static/icons/check_circle.svg" alt="" class="icon test-icon" aria-hidden="true">
                     </button>
                     <button class="btn-icon edit" onclick="editRoute('${route.id}')" title="Edit">
                         <img src="/static/icons/edit.svg" alt="Edit" style="width: 18px; height: 18px;" aria-hidden="true">
                     </button>
-                    <button class="btn-icon delete" onclick="deleteRoute('${route.id}')" title="Delete">
+                    <button class="btn-icon delete" onclick="deleteRoute('${route.id}', event)" title="Delete">
                         <img src="/static/icons/delete.svg" alt="Delete" style="width: 18px; height: 18px;" aria-hidden="true">
                     </button>
                 </div>
@@ -218,7 +218,7 @@ function filterRoutes() {
 }
 
 // Refresh Routes with loading state
-async function refreshRoutes() {
+async function refreshRoutes(event) {
     const btn = event.target.closest('button');
     const icon = btn.querySelector('.icon');
     
@@ -355,7 +355,7 @@ async function toggleRoute(routeId) {
 }
 
 // Test Route
-async function testRoute(routeId) {
+async function testRoute(routeId, event) {
     const btn = event.target.closest('button');
     const icon = btn.querySelector('.test-icon');
     const originalSrc = icon ? icon.src : null;
@@ -393,14 +393,14 @@ async function testRoute(routeId) {
 }
 
 // Delete Route
-async function deleteRoute(routeId) {
+async function deleteRoute(routeId, event) {
     const route = routes.find(r => r.id === routeId);
     if (!route) return;
-    
+
     if (!confirm(`Are you sure you want to delete the route "${route.name}" (${route.path})?`)) {
         return;
     }
-    
+
     // Find the delete button and add loading state
     const deleteBtn = event.target.closest('button');
     const originalContent = deleteBtn.innerHTML;

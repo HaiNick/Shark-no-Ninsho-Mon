@@ -102,7 +102,7 @@
                     <img src="{{ url_for('static', filename='icons/search.svg') }}" alt="" class="icon" aria-hidden="true" style="position: absolute; left: 1rem;">
                     <input type="text" id="search-input" placeholder="Search routes..." onkeyup="filterRoutes()">
                 </div>
-                <button class="btn btn-secondary" onclick="refreshRoutes()">
+                <button class="btn btn-secondary" onclick="refreshRoutes(event)">
                     <img src="{{ url_for('static', filename='icons/refresh.svg') }}" alt="" class="icon" aria-hidden="true">
                     Refresh
                 </button>
