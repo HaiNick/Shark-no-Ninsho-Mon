@@ -115,7 +115,7 @@ def _sync_caddy() -> None:
         logger.exception("CADDY_SYNC failed: %s", e)
 
 
-def _find_matching_route(route_path: str) -> Tuple[dict, None] | Tuple[None, None]:
+def _find_matching_route(route_path: str) -> dict | None:
     """Find a route matching the given path (with trailing-slash normalization)."""
     routes = route_manager.get_all_routes()
     for route in routes:
