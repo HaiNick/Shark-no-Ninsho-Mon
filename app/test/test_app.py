@@ -8,25 +8,42 @@ import tempfile
 import os
 
 
+# ---------------------------------------------------------------------------
+# Helpers
+# ---------------------------------------------------------------------------
+
+# Headers used by the authorised test client.  We always include
+# X-Requested-With so the CSRF check passes on non-JSON requests (DELETE,
+# empty-body POST, etc.)
+AUTH_HEADERS = {
+    'X-Forwarded-Email': 'test@example.com',
+    'X-Requested-With': 'XMLHttpRequest',
+}
+
+
+# ---------------------------------------------------------------------------
+# Fixtures
+# ---------------------------------------------------------------------------
+
 @pytest.fixture
 def client():
     """Create a test client"""
     import tempfile
     import os
-    
+
     # Create temporary database
     fd, db_path = tempfile.mkstemp(suffix='.json')
     os.close(fd)
-    
+
     # Update route_manager to use temp database
     from routes_db import RouteManager
     import app as app_module
     app_module.route_manager = RouteManager(db_path)
-    
+
     app.config['TESTING'] = True
     with app.test_client() as client:
         yield client
-    
+
     # Cleanup
     try:
         os.unlink(db_path)
@@ -39,30 +56,34 @@ def authorized_client(monkeypatch):
     """Create a test client with authorized email"""
     import tempfile
     import os
-    
+
     # Create temporary database
     fd, db_path = tempfile.mkstemp(suffix='.json')
     os.close(fd)
-    
+
     # Update route_manager to use temp database
     from routes_db import RouteManager
     import app as app_module
     app_module.route_manager = RouteManager(db_path)
-    
+
     app.config['TESTING'] = True
-    
+
     # Mock authorized emails
     monkeypatch.setattr('app.AUTHORIZED_EMAILS', {'test@example.com'})
-    
+
     with app.test_client() as client:
         yield client
-    
+
     # Cleanup
     try:
         os.unlink(db_path)
     except:
         pass
 
+
+# ---------------------------------------------------------------------------
+# Health & basic endpoints
+# ---------------------------------------------------------------------------
 
 def test_health_endpoint(client):
     """Test health check endpoint"""
@@ -73,15 +94,6 @@ def test_health_endpoint(client):
     assert 'timestamp' in data
 
 
-def test_whoami_endpoint(client):
-    """Test whoami endpoint"""
-    response = client.get('/whoami')
-    assert response.status_code == 200
-    data = response.get_json()
-    assert 'email' in data
-    assert 'authorized' in data
-
-
 def test_index_unauthorized(client):
     """Test index page without authorization"""
     response = client.get('/')
@@ -90,7 +102,7 @@ def test_index_unauthorized(client):
 
 def test_index_authorized(authorized_client):
     """Test index page with authorization"""
-    response = authorized_client.get('/', headers={'X-Forwarded-Email': 'test@example.com'})
+    response = authorized_client.get('/', headers=AUTH_HEADERS)
     assert response.status_code == 200
 
 
@@ -102,17 +114,25 @@ def test_admin_unauthorized(client):
 
 def test_admin_authorized(authorized_client):
     """Test admin page with authorization"""
-    response = authorized_client.get('/admin', headers={'X-Forwarded-Email': 'test@example.com'})
+    response = authorized_client.get('/admin', headers=AUTH_HEADERS)
     assert response.status_code == 200
 
 
-def test_404_page(client):
-    """Test 404 error page"""
-    response = client.get('/nonexistent-page')
+def test_404_page(authorized_client):
+    """Test 404 error page for unknown routes (authorized user)"""
+    response = authorized_client.get('/nonexistent-page', headers=AUTH_HEADERS)
     assert response.status_code == 404
 
 
+def test_404_page_unauthorized(client):
+    """Test that unknown routes return 403 when not authenticated"""
+    response = client.get('/nonexistent-page')
+    assert response.status_code == 403
+
+
+# ---------------------------------------------------------------------------
 # API Tests
+# ---------------------------------------------------------------------------
 
 def test_api_get_routes_unauthorized(client):
     """Test getting routes without authorization"""
@@ -124,7 +144,7 @@ def test_api_get_routes_unauthorized(client):
 def test_api_create_route_authorized(mock_sync, authorized_client):
     """Test creating a route with authorization"""
     mock_sync.return_value = {"ok": True}
-    
+
     route_data = {
         'path': '/test',
         'name': 'Test Service',
@@ -134,18 +154,18 @@ def test_api_create_route_authorized(mock_sync, authorized_client):
         'protocol': 'http',
         'enabled': True
     }
-    
+
     response = authorized_client.post(
         '/api/routes',
         json=route_data,
-        headers={'X-Forwarded-Email': 'test@example.com'}
+        headers=AUTH_HEADERS
     )
-    
+
     assert response.status_code == 201
     data = response.get_json()
     assert data['path'] == '/test'
     assert data['name'] == 'Test Service'
-    
+
     # Verify Caddy sync was called
     mock_sync.assert_called_once()
 
@@ -154,7 +174,7 @@ def test_api_create_route_authorized(mock_sync, authorized_client):
 def test_api_delete_route_authorized(mock_sync, authorized_client):
     """Test deleting a route with authorization"""
     mock_sync.return_value = {"ok": True}
-    
+
     # First create a route
     route_data = {
         'path': '/test-delete',
@@ -163,25 +183,26 @@ def test_api_delete_route_authorized(mock_sync, authorized_client):
         'target_port': 8080,
         'target_path': '/'
     }
-    
+
     create_response = authorized_client.post(
         '/api/routes',
         json=route_data,
-        headers={'X-Forwarded-Email': 'test@example.com'}
+        headers=AUTH_HEADERS
     )
-    
+
     assert create_response.status_code == 201
     route_id = create_response.get_json()['id']
-    
-    # Now delete it
+
+    # Now delete it — include content_type so CSRF check passes
     delete_response = authorized_client.delete(
         f'/api/routes/{route_id}',
-        headers={'X-Forwarded-Email': 'test@example.com'}
+        headers=AUTH_HEADERS,
+        content_type='application/json'
     )
-    
+
     assert delete_response.status_code == 200
     assert delete_response.get_json()['success'] is True
-    
+
     # Verify Caddy sync was called (once for create, once for delete)
     assert mock_sync.call_count == 2
 
@@ -197,7 +218,7 @@ def test_api_test_route(mock_test, mock_sync, authorized_client):
         'status_code': 200,
         'response_time': 150
     }
-    
+
     # Create a route first
     route_data = {
         'path': '/test-conn',
@@ -206,22 +227,23 @@ def test_api_test_route(mock_test, mock_sync, authorized_client):
         'target_port': 8080,
         'target_path': '/'
     }
-    
+
     create_response = authorized_client.post(
         '/api/routes',
         json=route_data,
-        headers={'X-Forwarded-Email': 'test@example.com'}
+        headers=AUTH_HEADERS
     )
-    
+
     assert create_response.status_code == 201
     route_id = create_response.get_json()['id']
-    
-    # Test connection
+
+    # Test connection — include content_type so CSRF check passes
     test_response = authorized_client.post(
         f'/api/routes/{route_id}/test',
-        headers={'X-Forwarded-Email': 'test@example.com'}
+        headers=AUTH_HEADERS,
+        content_type='application/json'
     )
-    
+
     assert test_response.status_code == 200
     data = test_response.get_json()
     assert data['success'] is True
@@ -233,7 +255,7 @@ def test_api_test_route(mock_test, mock_sync, authorized_client):
 def test_api_toggle_route(mock_sync, authorized_client):
     """Test toggling route enabled status"""
     mock_sync.return_value = {"ok": True}
-    
+
     # Create a route
     route_data = {
         'path': '/test-toggle',
@@ -243,27 +265,28 @@ def test_api_toggle_route(mock_sync, authorized_client):
         'target_path': '/',
         'enabled': True
     }
-    
+
     create_response = authorized_client.post(
         '/api/routes',
         json=route_data,
-        headers={'X-Forwarded-Email': 'test@example.com'}
+        headers=AUTH_HEADERS
     )
-    
+
     assert create_response.status_code == 201
     route_id = create_response.get_json()['id']
-    
-    # Toggle it
+
+    # Toggle it — include content_type so CSRF check passes
     toggle_response = authorized_client.post(
         f'/api/routes/{route_id}/toggle',
-        headers={'X-Forwarded-Email': 'test@example.com'}
+        headers=AUTH_HEADERS,
+        content_type='application/json'
     )
-    
+
     assert toggle_response.status_code == 200
     data = toggle_response.get_json()
     assert data['success'] is True
     assert data['enabled'] is False  # Should be toggled to False
-    
+
     # Verify Caddy sync was called (once for create, once for toggle)
     assert mock_sync.call_count == 2
 
@@ -277,13 +300,13 @@ def test_api_create_route_invalid_data(authorized_client):
         'target_port': 8080,
         'target_path': '/'
     }
-    
+
     response = authorized_client.post(
         '/api/routes',
         json=invalid_data,
-        headers={'X-Forwarded-Email': 'test@example.com'}
+        headers=AUTH_HEADERS
     )
-    
+
     assert response.status_code == 400
 
 
@@ -293,27 +316,44 @@ def test_api_create_route_missing_data(authorized_client):
         'path': '/incomplete',
         # Missing required fields
     }
-    
+
     response = authorized_client.post(
         '/api/routes',
         json=incomplete_data,
-        headers={'X-Forwarded-Email': 'test@example.com'}
+        headers=AUTH_HEADERS
     )
-    
+
     assert response.status_code == 400
 
 
-def test_refresh_emails_endpoint(authorized_client):
-    """Test refreshing authorized emails"""
+def test_api_refresh_emails_endpoint(authorized_client):
+    """Test refreshing authorized emails via the correct endpoint"""
     response = authorized_client.post(
-        '/api/admin/refresh-emails',
-        headers={'X-Forwarded-Email': 'test@example.com'}
+        '/api/emails/refresh',
+        headers=AUTH_HEADERS,
+        content_type='application/json'
     )
-    
-    # Endpoint may not exist, which is fine
-    assert response.status_code in [200, 404]
-    if response.status_code == 200:
-        data = response.get_json()
-        assert 'count' in data
-    elif response.status_code == 404:
-        pass  # Endpoint does not exist, acceptable
+
+    assert response.status_code == 200
+    data = response.get_json()
+    assert 'count' in data
+
+
+# ---------------------------------------------------------------------------
+# CSRF protection tests
+# ---------------------------------------------------------------------------
+
+@patch('app.caddy_mgr.sync')
+def test_csrf_blocks_request_without_indicator(mock_sync, authorized_client):
+    """State-changing requests without CSRF indicator are rejected"""
+    mock_sync.return_value = {"ok": True}
+
+    # POST without Content-Type: application/json or X-Requested-With
+    response = authorized_client.post(
+        '/api/routes',
+        data=b'not json',
+        headers={'X-Forwarded-Email': 'test@example.com'},
+        content_type='text/plain',
+    )
+    assert response.status_code == 403
+    assert 'CSRF' in response.get_json()['error']

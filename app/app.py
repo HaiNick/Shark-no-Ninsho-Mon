@@ -1,16 +1,18 @@
 """
 Shark-no-Ninsho-Mon - OAuth2 Authentication Gateway with Reverse Proxy Route Manager
 """
-from flask import Flask, render_template, request, jsonify, Response
+from flask import Flask, render_template, request, jsonify
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
+from functools import wraps
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 import os
+import tempfile
 import threading
 from pathlib import Path
 from dotenv import load_dotenv
-from typing import Any, Dict, Set
+from typing import Any, Callable, Dict, Set, Tuple
 import collections
 import re
 
@@ -22,8 +24,19 @@ load_dotenv()
 from routes_db import RouteManager
 from caddy_manager import CaddyManager
 
+# ============================================================================
+# CONSTANTS
+# ============================================================================
+
+MAX_LOG_ENTRIES = 200
+MAX_LOG_MESSAGE_LEN = 500
+
+# ============================================================================
+# LOGGING
+# ============================================================================
+
 # In-memory log storage for the web interface
-log_entries = collections.deque(maxlen=200)  # Keep only last 200 entries to save memory
+log_entries = collections.deque(maxlen=MAX_LOG_ENTRIES)
 
 class MemoryLogHandler(logging.Handler):
     """Custom log handler to store logs in memory for web interface"""
@@ -33,16 +46,16 @@ class MemoryLogHandler(logging.Handler):
             if record.levelno >= logging.INFO:
                 # Store minimal data to reduce memory footprint
                 log_entries.append({
-                    'timestamp': datetime.fromtimestamp(record.created).strftime('%H:%M:%S'),
+                    'timestamp': datetime.fromtimestamp(record.created, tz=timezone.utc).strftime('%H:%M:%S'),
                     'level': record.levelname,
-                    'message': record.getMessage()[:500]  # Truncate long messages
+                    'message': record.getMessage()[:MAX_LOG_MESSAGE_LEN]
                 })
         except Exception:
             self.handleError(record)
 
-    # Configure logging
+# Configure logging
 logging.basicConfig(
-    level=logging.INFO,  # Back to INFO level, but we'll log IP detection results
+    level=logging.INFO,
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
 )
 logger = logging.getLogger(__name__)
@@ -51,6 +64,10 @@ logger = logging.getLogger(__name__)
 memory_handler = MemoryLogHandler()
 memory_handler.setFormatter(logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s'))
 logger.addHandler(memory_handler)
+
+# ============================================================================
+# APP INITIALIZATION
+# ============================================================================
 
 # Initialize Flask app
 app = Flask(__name__)
@@ -68,7 +85,7 @@ app.config['PERMANENT_SESSION_LIFETIME'] = settings.permanent_session_lifetime
 # No default limits - apply specific limits only to sensitive endpoints
 limiter = Limiter(
     app=app,
-    key_func=lambda: request.remote_addr,
+    key_func=get_remote_address,
     default_limits=[],
     storage_uri="memory://"
 )
@@ -77,13 +94,69 @@ limiter = Limiter(
 route_manager = RouteManager(settings.routes_db_path)
 caddy_mgr = CaddyManager()  # uses http://caddy:2019 and :8080 by default
 
+# ============================================================================
+# UTILITY HELPERS
+# ============================================================================
+
 def is_valid_email(email: str) -> bool:
     """Validate email format using regex"""
     if not email or not isinstance(email, str):
         return False
-    # Basic but reliable email validation
     pattern = r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$'
     return re.match(pattern, email.strip()) is not None
+
+
+def parse_bool(value: Any, default: bool = False) -> bool:
+    """Best effort boolean parsing for JSON payloads."""
+    if value is None:
+        return default
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, (int, float)):
+        return value != 0
+    return str(value).strip().lower() in {'1', 'true', 't', 'yes', 'on'}
+
+
+def _sync_caddy() -> None:
+    """Resync all routes to Caddy. Logs errors but does not raise."""
+    try:
+        routes = route_manager.get_all_routes()
+        caddy_mgr.sync(routes)
+    except Exception as e:
+        logger.exception("CADDY_SYNC failed: %s", e)
+
+
+def _find_matching_route(route_path: str) -> Tuple[dict, None] | Tuple[None, None]:
+    """Find a route matching the given path (with trailing-slash normalization)."""
+    routes = route_manager.get_all_routes()
+    for route in routes:
+        if route['path'] == route_path or route['path'].rstrip('/') == route_path.rstrip('/'):
+            return route
+    return None
+
+
+def _write_emails_atomic(emails_list: list, path_obj: Path) -> None:
+    """Write emails to file atomically using temp file + os.replace()."""
+    fd, tmp_path = tempfile.mkstemp(
+        dir=str(path_obj.parent), suffix='.tmp', prefix='.emails_'
+    )
+    try:
+        with os.fdopen(fd, 'w', encoding='utf-8') as f:
+            for e in emails_list:
+                f.write(f'{e}\n')
+        os.replace(tmp_path, str(path_obj))
+    except BaseException:
+        # Clean up temp file on any failure
+        try:
+            os.unlink(tmp_path)
+        except OSError:
+            pass
+        raise
+
+
+# ============================================================================
+# EMAIL AUTHORIZATION
+# ============================================================================
 
 def _load_authorized_emails(path: str) -> Set[str]:
     emails: Set[str] = set()
@@ -119,53 +192,106 @@ def _load_authorized_emails(path: str) -> Set[str]:
 
 
 def refresh_authorized_emails() -> int:
-    """Reload authorized emails from disk."""
+    """Reload authorized emails from disk (atomic reference swap)."""
     global AUTHORIZED_EMAILS
-    AUTHORIZED_EMAILS = _load_authorized_emails(settings.emails_file)
-    logger.info(f"Loaded {len(AUTHORIZED_EMAILS)} authorized emails")
-    return len(AUTHORIZED_EMAILS)
+    new_emails = _load_authorized_emails(settings.emails_file)
+    AUTHORIZED_EMAILS = new_emails  # atomic reference swap under GIL
+    logger.info(f"Loaded {len(new_emails)} authorized emails")
+    return len(new_emails)
 
 
 AUTHORIZED_EMAILS: Set[str] = set()
 refresh_authorized_emails()
 
 
-def parse_bool(value: Any, default: bool = False) -> bool:
-    """Best effort boolean parsing for JSON payloads."""
-    if value is None:
-        return default
-    if isinstance(value, bool):
-        return value
-    if isinstance(value, (int, float)):
-        return value != 0
-    return str(value).strip().lower() in {'1', 'true', 't', 'yes', 'on'}
+# ============================================================================
+# AUTH HELPERS & DECORATOR
+# ============================================================================
+
+def _is_dev_mode() -> bool:
+    """Return True only when FLASK_ENV is 'development' AND DEV_MODE is 'true'."""
+    return (
+        os.environ.get('FLASK_ENV') == 'development'
+        and os.environ.get('DEV_MODE', '').lower() == 'true'
+    )
 
 
-def get_user_email():
+def get_user_email() -> str:
     """Get user email from OAuth2 proxy headers"""
-    # Try multiple header variations that oauth2-proxy might use
     email = (
         request.headers.get('X-Forwarded-Email') or
         request.headers.get('X-Auth-Request-Email') or
         request.headers.get('X-Forwarded-User') or
         ''
     ).lower().strip()
-    
-    # Development mode fallback
-    if not email and (os.environ.get('FLASK_ENV') == 'development' or os.environ.get('DEV_MODE') == 'true'):
+
+    # Development mode fallback - only when BOTH flags are set
+    if not email and _is_dev_mode():
         return 'dev@localhost'
-    
+
     return email
 
 
-def is_authorized():
+def is_authorized() -> bool:
     """Check if user is authorized"""
-    # Development mode bypass
-    if os.environ.get('FLASK_ENV') == 'development' or os.environ.get('DEV_MODE') == 'true':
+    if _is_dev_mode():
         return True
-    
+
     email = get_user_email()
     return email in AUTHORIZED_EMAILS
+
+
+def _check_csrf() -> bool:
+    """Verify that state-changing requests come from our own frontend.
+
+    Accepts the request when ANY of the following is true:
+    - ``X-Requested-With: XMLHttpRequest`` header is present (set by our JS)
+    - The request ``Content-Type`` is ``application/json`` (browser forms
+      cannot send this cross-origin without a preflight)
+    - Dev-mode is active
+
+    Returns True when the request is safe, False otherwise.
+    """
+    if _is_dev_mode():
+        return True
+    if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+        return True
+    ct = request.content_type or ''
+    if 'application/json' in ct:
+        return True
+    return False
+
+
+def require_auth(f: Callable) -> Callable:
+    """Decorator that checks authorization for page routes (returns HTML 403)."""
+    @wraps(f)
+    def decorated(*args, **kwargs):
+        email = get_user_email()
+        if not is_authorized():
+            logger.warning(f"UNAUTHORIZED ACCESS - Email: {email} | Path: {request.path}")
+            return render_template('unauthorized.html', email=email), 403
+        return f(*args, **kwargs)
+    return decorated
+
+
+def require_api_auth(f: Callable) -> Callable:
+    """Decorator that checks authorization for API routes (returns JSON 403)."""
+    @wraps(f)
+    def decorated(*args, **kwargs):
+        if not is_authorized():
+            return jsonify({'error': 'Unauthorized'}), 403
+        return f(*args, **kwargs)
+    return decorated
+
+
+def require_csrf(f: Callable) -> Callable:
+    """Decorator that rejects state-changing requests without CSRF indicators."""
+    @wraps(f)
+    def decorated(*args, **kwargs):
+        if not _check_csrf():
+            return jsonify({'error': 'CSRF validation failed'}), 403
+        return f(*args, **kwargs)
+    return decorated
 
 
 # ============================================================================
@@ -173,32 +299,25 @@ def is_authorized():
 # ============================================================================
 
 @app.route('/')
+@require_auth
 def index():
     """Main dashboard"""
     email = get_user_email()
-    
-    if not is_authorized():
-        logger.warning(f"UNAUTHORIZED ACCESS - Email: {email} | Authorized emails: {len(AUTHORIZED_EMAILS)}")
-        return render_template('unauthorized.html', email=email), 403
-    
+
     # Get all routes (both enabled and disabled) to display on dashboard
     routes = route_manager.get_all_routes(enabled_only=False)
-    
+
     logger.info(f"ACCESS - User: {email} | Path: /")
-    
+
     return render_template('index.html', email=email, routes=routes)
 
 
 @app.route('/admin')
+@require_auth
 def admin():
     """Route management admin page"""
     email = get_user_email()
-    
-    if not is_authorized():
-        return render_template('unauthorized.html', email=email), 403
-    
     logger.info(f"ACCESS - User: {email} | Path: /admin")
-    
     return render_template('admin.html', email=email)
 
 
@@ -208,89 +327,73 @@ def health():
     """Health check endpoint"""
     return jsonify({
         'status': 'healthy',
-        'timestamp': datetime.now().isoformat(),
+        'timestamp': datetime.now(timezone.utc).isoformat(),
         'routes_count': len(route_manager.get_all_routes())
     })
 
+
 @app.route('/logs')
+@require_auth
 def logs():
     """Display application logs"""
     email = get_user_email()
-    
-    if not is_authorized():
-        return render_template('unauthorized.html', email=email), 403
-    
     logger.info(f"ACCESS - User: {email} | Path: /logs")
-    
     return render_template('logs.html', email=email)
 
 
 @app.route('/emails')
+@require_auth
 def emails():
     """Email management page"""
     email = get_user_email()
-    
-    if not is_authorized():
-        return render_template('unauthorized.html', email=email), 403
-    
     logger.info(f"ACCESS - User: {email} | Path: /emails")
-    
     return render_template('emails.html', email=email)
 
 
 @app.route('/route-disabled')
+@require_auth
 def route_disabled():
     """Route disabled page"""
     email = get_user_email()
-    
-    if not is_authorized():
-        return render_template('unauthorized.html', email=email), 403
-    
     route_path = request.args.get('path', 'Unknown Route')
     route_name = request.args.get('name', '')
-    
     logger.info(f"ROUTE_DISABLED - User: {email} | Path: {route_path}")
-    
-    return render_template('route_disabled.html', 
-                         email=email, 
-                         route_path=route_path, 
+    return render_template('route_disabled.html',
+                         email=email,
+                         route_path=route_path,
                          route_name=route_name)
 
 
 @app.route('/api/logs', methods=['GET'])
 @limiter.limit("30 per minute")
+@require_api_auth
 def api_get_logs():
     """Get recent log entries"""
     email = get_user_email()
-    
-    if not is_authorized():
-        return jsonify({'error': 'Unauthorized'}), 403
-    
+
     try:
-        # Get recent log entries from memory (already limited to 200 entries)
         recent_entries = list(log_entries)
-        
-        # Format entries for display - simple and fast
+
         formatted_logs = []
-        current_date = datetime.now().strftime('%Y-%m-%d')
-        
+        current_date = datetime.now(timezone.utc).strftime('%Y-%m-%d')
+
         for entry in recent_entries:
             formatted_logs.append(f"[{current_date} {entry['timestamp']}] {entry['level']} - {entry['message']}")
-        
+
         logger.info(f"LOGS_ACCESS - User: {email} | Entries: {len(formatted_logs)}")
-        
+
         return jsonify({
             'logs': formatted_logs,
             'count': len(formatted_logs),
-            'timestamp': datetime.now().isoformat()
+            'timestamp': datetime.now(timezone.utc).isoformat()
         })
-    
+
     except Exception as e:
         logger.error(f"Error reading logs: {str(e)}")
         return jsonify({
             'logs': [f"Error reading logs: {str(e)}"],
             'count': 1,
-            'timestamp': datetime.now().isoformat()
+            'timestamp': datetime.now(timezone.utc).isoformat()
         })
 
 
@@ -300,31 +403,26 @@ def api_get_logs():
 
 @app.route('/api/routes', methods=['GET'])
 @limiter.limit("100 per hour")
+@require_api_auth
 def api_get_routes():
     """Get all routes"""
-    email = get_user_email()
-    
-    if not is_authorized():
-        return jsonify({'error': 'Unauthorized'}), 403
-    
     routes = route_manager.get_all_routes()
     return jsonify(routes)
 
 
 @app.route('/api/routes', methods=['POST'])
 @limiter.limit("50 per hour")
+@require_api_auth
+@require_csrf
 def api_create_route():
     """Create a new route"""
     email = get_user_email()
-    
-    if not is_authorized():
-        return jsonify({'error': 'Unauthorized'}), 403
-    
+
     data = request.get_json(silent=True)
 
     if not isinstance(data, dict):
         return jsonify({'error': 'Request body must be a JSON object'}), 400
-    
+
     try:
         route = route_manager.add_route(
             path=data.get('path'),
@@ -339,22 +437,17 @@ def api_create_route():
             preserve_host=parse_bool(data.get('preserve_host', False)),
             websocket=parse_bool(data.get('websocket', False))
         )
-        
+
         logger.info(f"ROUTE_ADD - User: {email} | Path: {route['path']} | Target: {route['target_ip']}:{route['target_port']}")
-        
-        # After DB change, resync Caddy
-        try:
-            routes = route_manager.get_all_routes()
-            caddy_mgr.sync(routes)
-        except Exception as e:
-            logger.exception("CADDY_SYNC after add failed: %s", e)
-        
+
+        _sync_caddy()
+
         return jsonify(route), 201
-    
+
     except ValueError as e:
         logger.error(f"ROUTE_ADD_ERROR - User: {email} | Error: {str(e)}")
         return jsonify({'error': str(e)}), 400
-    
+
     except Exception as e:
         logger.error(f"ROUTE_ADD_ERROR - User: {email} | Error: {str(e)}")
         return jsonify({'error': 'Internal server error'}), 500
@@ -362,35 +455,30 @@ def api_create_route():
 
 @app.route('/api/routes/<route_id>', methods=['GET'])
 @limiter.limit("100 per hour")
+@require_api_auth
 def api_get_route(route_id):
     """Get a single route"""
-    email = get_user_email()
-    
-    if not is_authorized():
-        return jsonify({'error': 'Unauthorized'}), 403
-    
     route = route_manager.get_route_by_id(route_id)
-    
+
     if not route:
         return jsonify({'error': 'Route not found'}), 404
-    
+
     return jsonify(route)
 
 
 @app.route('/api/routes/<route_id>', methods=['PUT'])
 @limiter.limit("50 per hour")
+@require_api_auth
+@require_csrf
 def api_update_route(route_id):
     """Update a route"""
     email = get_user_email()
-    
-    if not is_authorized():
-        return jsonify({'error': 'Unauthorized'}), 403
-    
+
     data = request.get_json(silent=True)
 
     if not isinstance(data, dict):
         return jsonify({'error': 'Request body must be a JSON object'}), 400
-    
+
     try:
         updates: Dict[str, Any] = {}
 
@@ -432,24 +520,17 @@ def api_update_route(route_id):
             return jsonify({'error': 'No valid fields provided'}), 400
 
         success = route_manager.update_route(route_id, updates)
-        
+
         if success:
             logger.info(f"ROUTE_UPDATE - User: {email} | Route: {route_id} | Changes: {list(updates.keys())}")
-            
-            # After DB change, resync Caddy
-            try:
-                routes = route_manager.get_all_routes()
-                caddy_mgr.sync(routes)
-            except Exception as e:
-                logger.exception("CADDY_SYNC after update failed: %s", e)
-            
+            _sync_caddy()
             return jsonify({'success': True, 'route': route_manager.get_route_by_id(route_id)})
         else:
             return jsonify({'error': 'Route not found'}), 404
-    
+
     except ValueError as e:
         return jsonify({'error': str(e)}), 400
-    
+
     except Exception as e:
         logger.error(f"ROUTE_UPDATE_ERROR - User: {email} | Route: {route_id} | Error: {str(e)}")
         return jsonify({'error': 'Internal server error'}), 500
@@ -457,25 +538,17 @@ def api_update_route(route_id):
 
 @app.route('/api/routes/<route_id>', methods=['DELETE'])
 @limiter.limit("50 per hour")
+@require_api_auth
+@require_csrf
 def api_delete_route(route_id):
     """Delete a route"""
     email = get_user_email()
-    
-    if not is_authorized():
-        return jsonify({'error': 'Unauthorized'}), 403
-    
+
     success = route_manager.delete_route(route_id)
-    
+
     if success:
         logger.info(f"ROUTE_DELETE - User: {email} | Route: {route_id}")
-        
-        # After DB change, resync Caddy
-        try:
-            routes = route_manager.get_all_routes()
-            caddy_mgr.sync(routes)
-        except Exception as e:
-            logger.exception("CADDY_SYNC after delete failed: %s", e)
-        
+        _sync_caddy()
         return jsonify({'success': True})
     else:
         return jsonify({'error': 'Route not found'}), 404
@@ -483,56 +556,49 @@ def api_delete_route(route_id):
 
 @app.route('/api/routes/<route_id>/test', methods=['POST'])
 @limiter.limit("30 per hour")
+@require_api_auth
+@require_csrf
 def api_test_route(route_id):
     """Test route connectivity"""
     email = get_user_email()
-    
-    if not is_authorized():
-        return jsonify({'error': 'Unauthorized'}), 403
-    
+
     route = route_manager.get_route_by_id(route_id)
     if not route:
         return jsonify({'error': 'Route not found'}), 404
-    
+
     result = caddy_mgr.test_connection(route)
-    
+
     # Update route status in database
     if result.get('success'):
         route_manager.update_route_status(route_id, result['status'])
     else:
         route_manager.update_route_status(route_id, result.get('status', 'error'))
-    
+
     logger.info(f"ROUTE_TEST - User: {email} | Route: {route_id} | Result: {result.get('status', 'error')}")
-    
+
     return jsonify(result)
 
 
 @app.route('/api/routes/<route_id>/toggle', methods=['POST'])
 @limiter.limit("50 per hour")
+@require_api_auth
+@require_csrf
 def api_toggle_route(route_id):
     """Toggle route enabled status"""
     email = get_user_email()
-    
-    if not is_authorized():
-        return jsonify({'error': 'Unauthorized'}), 403
-    
+
     route = route_manager.get_route_by_id(route_id)
-    
+
     if not route:
         return jsonify({'error': 'Route not found'}), 404
-    
+
     new_enabled = not route.get('enabled', True)
     route_manager.update_route(route_id, {'enabled': new_enabled})
-    
+
     logger.info(f"ROUTE_TOGGLE - User: {email} | Route: {route_id} | Enabled: {new_enabled}")
-    
-    # After DB change, resync Caddy
-    try:
-        routes = route_manager.get_all_routes()
-        caddy_mgr.sync(routes)
-    except Exception as e:
-        logger.exception("CADDY_SYNC after toggle failed: %s", e)
-    
+
+    _sync_caddy()
+
     return jsonify({'success': True, 'enabled': new_enabled})
 
 
@@ -542,13 +608,9 @@ def api_toggle_route(route_id):
 
 @app.route('/api/emails', methods=['GET'])
 @limiter.limit("100 per hour")
+@require_api_auth
 def api_get_emails():
     """Get all authorized emails"""
-    email = get_user_email()
-    
-    if not is_authorized():
-        return jsonify({'error': 'Unauthorized'}), 403
-    
     return jsonify({
         'emails': list(AUTHORIZED_EMAILS),
         'count': len(AUTHORIZED_EMAILS)
@@ -557,46 +619,42 @@ def api_get_emails():
 
 @app.route('/api/emails', methods=['POST'])
 @limiter.limit("20 per hour")
+@require_api_auth
+@require_csrf
 def api_add_email():
     """Add a new authorized email"""
     email = get_user_email()
-    
-    if not is_authorized():
-        return jsonify({'error': 'Unauthorized'}), 403
-    
+
     data = request.get_json(silent=True)
     if not isinstance(data, dict):
         return jsonify({'error': 'Request body must be a JSON object'}), 400
-    
+
     new_email = data.get('email', '').strip().lower()
-    
+
     if not new_email:
         return jsonify({'error': 'Email is required'}), 400
-    
-    # Basic email validation
+
     if not is_valid_email(new_email):
         return jsonify({'error': 'Invalid email format'}), 400
-    
+
     if new_email in AUTHORIZED_EMAILS:
         return jsonify({'error': 'Email already exists'}), 400
-    
+
     try:
-        # Add to file
         path_obj = Path(settings.emails_file)
         with path_obj.open('a', encoding='utf-8') as f:
             f.write(f'{new_email}\n')
-        
-        # Refresh in-memory list
+
         refresh_authorized_emails()
-        
+
         logger.info(f"EMAIL_ADD - User: {email} | Added: {new_email}")
-        
+
         return jsonify({
             'success': True,
             'email': new_email,
             'total_emails': len(AUTHORIZED_EMAILS)
         }), 201
-    
+
     except Exception as e:
         logger.error(f"EMAIL_ADD_ERROR - User: {email} | Error: {str(e)}")
         return jsonify({'error': 'Failed to add email'}), 500
@@ -604,48 +662,43 @@ def api_add_email():
 
 @app.route('/api/emails/<email_to_remove>', methods=['DELETE'])
 @limiter.limit("20 per hour")
+@require_api_auth
+@require_csrf
 def api_remove_email(email_to_remove):
     """Remove an authorized email"""
     email = get_user_email()
-    
-    if not is_authorized():
-        return jsonify({'error': 'Unauthorized'}), 403
-    
+
     email_to_remove = email_to_remove.strip().lower()
-    
+
     if email_to_remove not in AUTHORIZED_EMAILS:
         return jsonify({'error': 'Email not found'}), 404
-    
+
     # Prevent removing own email
     if email_to_remove == email:
         return jsonify({'error': 'Cannot remove your own email'}), 400
-    
+
     try:
-        # Read all emails
         path_obj = Path(settings.emails_file)
-        emails = []
+        remaining = []
         with path_obj.open('r', encoding='utf-8') as f:
             for line in f:
                 stripped = line.strip()
                 if stripped and not stripped.startswith('#') and stripped.lower() != email_to_remove:
-                    emails.append(stripped)
-        
-        # Write back without the removed email
-        with path_obj.open('w', encoding='utf-8') as f:
-            for e in emails:
-                f.write(f'{e}\n')
-        
-        # Refresh in-memory list
+                    remaining.append(stripped)
+
+        # Atomic write via temp file
+        _write_emails_atomic(remaining, path_obj)
+
         refresh_authorized_emails()
-        
+
         logger.info(f"EMAIL_REMOVE - User: {email} | Removed: {email_to_remove}")
-        
+
         return jsonify({
             'success': True,
             'removed_email': email_to_remove,
             'total_emails': len(AUTHORIZED_EMAILS)
         })
-    
+
     except Exception as e:
         logger.error(f"EMAIL_REMOVE_ERROR - User: {email} | Error: {str(e)}")
         return jsonify({'error': 'Failed to remove email'}), 500
@@ -653,72 +706,67 @@ def api_remove_email(email_to_remove):
 
 @app.route('/api/emails/<email_to_update>', methods=['PUT'])
 @limiter.limit("10 per hour")
+@require_api_auth
+@require_csrf
 def api_update_email(email_to_update):
     """Update an authorized email"""
     current_user_email = get_user_email()
-    
-    if not is_authorized():
-        return jsonify({'error': 'Unauthorized'}), 403
-    
+
     data = request.get_json(silent=True)
     if not data:
         return jsonify({'error': 'No data provided'}), 400
-    
+
     new_email = data.get('email', '').strip().lower()
     email_to_update = email_to_update.strip().lower()
-    
+
     if not new_email:
         return jsonify({'error': 'New email is required'}), 400
-    
+
     if not is_valid_email(new_email):
         return jsonify({'error': 'Invalid email format'}), 400
-    
+
     if email_to_update not in AUTHORIZED_EMAILS:
         return jsonify({'error': 'Original email not found'}), 404
-    
+
     if new_email in AUTHORIZED_EMAILS and new_email != email_to_update:
         return jsonify({'error': 'New email already exists'}), 409
-    
+
     # Prevent updating own email to avoid locking out
     if email_to_update == current_user_email:
         return jsonify({'error': 'Cannot update your own email for security reasons'}), 400
-    
+
     try:
-        # Read all emails
         path_obj = Path(settings.emails_file)
-        emails = []
+        updated_list = []
         updated = False
-        
+
         with path_obj.open('r', encoding='utf-8') as f:
             for line in f:
                 stripped = line.strip()
                 if stripped and not stripped.startswith('#'):
                     if stripped.lower() == email_to_update:
-                        emails.append(new_email)
+                        updated_list.append(new_email)
                         updated = True
                     else:
-                        emails.append(stripped)
-        
+                        updated_list.append(stripped)
+
         if not updated:
             return jsonify({'error': 'Email not found in file'}), 404
-        
-        # Write back with updated email
-        with path_obj.open('w', encoding='utf-8') as f:
-            for e in emails:
-                f.write(f'{e}\n')
-        
-        # Refresh in-memory list
+
+        # Atomic write via temp file
+        _write_emails_atomic(updated_list, path_obj)
+
         refresh_authorized_emails()
-        
+
         logger.info(f"EMAIL_UPDATE - User: {current_user_email} | Updated: {email_to_update} -> {new_email}")
-        
+
         return jsonify({
             'success': True,
             'old_email': email_to_update,
             'new_email': new_email,
             'total_emails': len(AUTHORIZED_EMAILS)
         })
-    
+
     except Exception as e:
         logger.error(f"EMAIL_UPDATE_ERROR - User: {current_user_email} | Error: {str(e)}")
         return jsonify({'error': 'Failed to update email'}), 500
@@ -726,23 +774,22 @@ def api_update_email(email_to_update):
 
 @app.route('/api/emails/refresh', methods=['POST'])
 @limiter.limit("10 per hour")
+@require_api_auth
+@require_csrf
 def api_refresh_emails():
     """Refresh authorized emails from disk"""
     email = get_user_email()
-    
-    if not is_authorized():
-        return jsonify({'error': 'Unauthorized'}), 403
-    
+
     try:
         count = refresh_authorized_emails()
         logger.info(f"EMAIL_REFRESH - User: {email} | Count: {count}")
-        
+
         return jsonify({
             'success': True,
             'count': count,
             'emails': list(AUTHORIZED_EMAILS)
         })
-    
+
     except Exception as e:
         logger.error(f"EMAIL_REFRESH_ERROR - User: {email} | Error: {str(e)}")
         return jsonify({'error': 'Failed to refresh emails'}), 500
@@ -752,19 +799,11 @@ def api_refresh_emails():
 @limiter.exempt
 def api_check_route_status(route_path):
     """API endpoint to check if a route is enabled (for Caddy to use)"""
-    # Add leading slash if not present
     if not route_path.startswith('/'):
         route_path = '/' + route_path
-    
-    # Check if this route exists and is enabled
-    routes = route_manager.get_all_routes()
-    matching_route = None
-    
-    for route in routes:
-        if route['path'] == route_path or route['path'].rstrip('/') == route_path.rstrip('/'):
-            matching_route = route
-            break
-    
+
+    matching_route = _find_matching_route(route_path)
+
     if matching_route:
         enabled = matching_route.get('enabled', True)
         return jsonify({
@@ -786,42 +825,30 @@ def api_check_route_status(route_path):
 # ============================================================================
 
 @app.route('/<path:route_path>')
+@require_auth
 def check_route_status(route_path):
     """Check if a route is disabled and redirect accordingly"""
     email = get_user_email()
-    
-    if not is_authorized():
-        return render_template('unauthorized.html', email=email), 403
-    
-    # Add leading slash if not present
+
     if not route_path.startswith('/'):
         route_path = '/' + route_path
-    
-    # Check if this route exists in our database
-    routes = route_manager.get_all_routes()
-    matching_route = None
-    
-    for route in routes:
-        if route['path'] == route_path or route['path'].rstrip('/') == route_path.rstrip('/'):
-            matching_route = route
-            break
-    
+
+    matching_route = _find_matching_route(route_path)
+
     if matching_route:
-        # Check if route is disabled
         if not matching_route.get('enabled', True):
             logger.info(f"ROUTE_DISABLED_ACCESS - User: {email} | Path: {route_path} | Route: {matching_route['name']}")
-            return render_template('route_disabled.html', 
-                                 email=email, 
-                                 route_path=route_path, 
+            return render_template('route_disabled.html',
+                                 email=email,
+                                 route_path=route_path,
                                  route_name=matching_route.get('name', ''))
         else:
-            # Route is enabled, let Caddy handle it (this shouldn't normally be reached in production)
             logger.info(f"ROUTE_ENABLED_ACCESS - User: {email} | Path: {route_path} | Route: {matching_route['name']}")
-            # In production, this would be handled by Caddy proxy
-            # For development, we can show a message or redirect
-            return f"Route {route_path} is enabled and should be handled by the reverse proxy.", 200
+            return render_template('route_disabled.html',
+                                 email=email,
+                                 route_path=route_path,
+                                 route_name=matching_route.get('name', '')), 200
     else:
-        # Route not found in our system, return 404
         logger.warning(f"ROUTE_NOT_FOUND - User: {email} | Path: {route_path}")
         return render_template('404.html', path=route_path), 404
 
@@ -868,7 +895,7 @@ def health_check_worker(stop_event: threading.Event, interval: int):
             for route in routes:
                 if route.get('health_check', False) and route.get('enabled', True):
                     result = caddy_mgr.test_connection(route)
-                    
+
                     # Update with new enhanced status fields
                     route_manager.update_route_status(
                         route['id'],
@@ -922,10 +949,10 @@ def start_health_check_worker():
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 8000))
     debug = os.environ.get('DEBUG', 'False').lower() == 'true'
-    
+
     if not debug or os.environ.get('WERKZEUG_RUN_MAIN') == 'true':
         start_health_check_worker()
-        
+
         # Sync routes to Caddy on startup
         try:
             routes = route_manager.get_all_routes()
@@ -937,5 +964,5 @@ if __name__ == '__main__':
     logger.info(f"Starting Shark-no-Ninsho-Mon on port {port}")
     logger.info(f"Authorized emails: {len(AUTHORIZED_EMAILS)}")
     logger.info(f"Existing routes: {len(route_manager.get_all_routes())}")
-    
+
     app.run(host='0.0.0.0', port=port, debug=debug)

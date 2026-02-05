@@ -312,7 +312,8 @@ async function removeEmail(email) {
     
     try {
         const response = await fetch(`/api/emails/${encodeURIComponent(email)}`, {
-            method: 'DELETE'
+            method: 'DELETE',
+            headers: { 'X-Requested-With': 'XMLHttpRequest' }
         });
         
         const data = await response.json();
@@ -346,7 +347,8 @@ async function removeEmail(email) {
 async function refreshEmails() {
     try {
         const response = await fetch('/api/emails/refresh', {
-            method: 'POST'
+            method: 'POST',
+            headers: { 'X-Requested-With': 'XMLHttpRequest' }
         });
         
         const data = await response.json();

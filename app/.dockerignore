@@ -1,0 +1,25 @@
+# Version control
+.git
+.gitignore
+
+# Test files
+test/
+__pycache__/
+*.pyc
+*.pyo
+
+# Development files
+dev.py
+.env
+.env.*
+
+# IDE / editor
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS files
+.DS_Store
+Thumbs.db

@@ -333,7 +333,8 @@ async function handleSubmit(event) {
 async function toggleRoute(routeId) {
     try {
         const response = await fetch(`/api/routes/${routeId}/toggle`, {
-            method: 'POST'
+            method: 'POST',
+            headers: { 'X-Requested-With': 'XMLHttpRequest' }
         });
         
         const result = await response.json();
@@ -366,7 +367,8 @@ async function testRoute(routeId) {
     
     try {
         const response = await fetch(`/api/routes/${routeId}/test`, {
-            method: 'POST'
+            method: 'POST',
+            headers: { 'X-Requested-With': 'XMLHttpRequest' }
         });
         
         const result = await response.json();
@@ -407,7 +409,8 @@ async function deleteRoute(routeId) {
     
     try {
         const response = await fetch(`/api/routes/${routeId}`, {
-            method: 'DELETE'
+            method: 'DELETE',
+            headers: { 'X-Requested-With': 'XMLHttpRequest' }
         });
         
         const result = await response.json();

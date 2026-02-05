@@ -4,7 +4,10 @@ from __future__ import annotations
 from dataclasses import dataclass
 from functools import lru_cache
 from pathlib import Path
+import logging
 import os
+
+_log = logging.getLogger(__name__)
 
 
 def _to_bool(value: object, default: bool = False) -> bool:
@@ -43,6 +46,11 @@ def get_settings() -> Settings:
     env = os.environ
 
     secret_key = env.get("SECRET_KEY", "dev-secret-key-change-in-production")
+    if secret_key == "dev-secret-key-change-in-production":
+        _log.warning(
+            "SECRET_KEY is using the default value. "
+            "Set the SECRET_KEY environment variable for production use."
+        )
 
     default_routes_path = base_dir / "routes.json"
     routes_db_path = env.get("ROUTES_DB_PATH", str(default_routes_path))
