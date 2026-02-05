@@ -138,8 +138,9 @@ def _write_emails_atomic(emails_list: list, path_obj: Path) -> None:
         # Clean up temp file on any failure
         try:
             os.unlink(tmp_path)
-        except OSError:
-            pass
+        except OSError as cleanup_exc:
+            # Best-effort cleanup; ignore failure to delete temp file.
+            logger.debug("Failed to remove temporary emails file %s: %s", tmp_path, cleanup_exc)
         raise
 
 
