@@ -13,9 +13,6 @@ updates:
       - "HaiNick"
     assignees:
       - "HaiNick"
-    labels:
-      - "dependencies"
-      - "python"
     commit-message:
       prefix: "deps"
       include: "scope"
@@ -38,9 +35,6 @@ updates:
       - "HaiNick"
     assignees:
       - "HaiNick"
-    labels:
-      - "dependencies"
-      - "docker"
     commit-message:
       prefix: "docker"
       include: "scope"
@@ -58,10 +52,6 @@ updates:
       - "HaiNick"
     assignees:
       - "HaiNick"
-    labels:
-      - "dependencies"
-      - "docker"
-      - "compose"
     commit-message:
       prefix: "compose"
       include: "scope"
