@@ -14,7 +14,7 @@
 1. **Caddy Admin API Exposed** (HIGH) - Port 2019 exposed in docker-compose.yml allows unauthenticated config modification
 2. **Setup Wizard Unauthenticated** (HIGH) - Runs on 0.0.0.0:8080 without any authentication
 3. **OAuth2 Header Trust Without Verification** (HIGH) - Flask trusts X-Forwarded-Email headers without validating source
-4. **Email Allowlist Race Conditions** (MEDIUM) - File-based email management prone to concurrent write issues
+4. **Email Allowlist Race Conditions** (HIGH) - File-based email management prone to concurrent write issues
 5. **DEV_MODE Bypass** (HIGH) - Development mode bypasses all auth checks, easy to accidentally enable in production
 
 **KEY OPPORTUNITIES:**
@@ -47,16 +47,25 @@
 #   - "2019:2019"   # REMOVE THIS LINE
 ```
 
-Additionally, bind Caddy Admin to localhost inside container:
-```json
-"admin": { "listen": "127.0.0.1:2019" }
-```
+With the host port mapping removed, the Admin API remains reachable from other
+containers on the internal Docker network at `http://caddy:2019`. **Do not**
+bind the Admin API to `127.0.0.1:2019` *inside* the Caddy container in this
+multi-container setup, because that would prevent the Flask app container from
+reaching `http://caddy:2019`.
 
-**Alternative:** Use Unix socket for Admin API:
-```json
-"admin": { "listen": "unix//var/run/caddy/admin.sock" }
-```
+**Hardening options:**
 
+1. **Rely on Docker network isolation (recommended default):**
+
+   Keep the Admin API listening on the container’s network interface
+   (for example, `":2019"`) so the Flask app can continue to use
+   `http://caddy:2019`, but rely on the absence of a host port mapping and
+   Docker’s internal network to prevent external access.
+
+2. **Use a Unix socket for the Admin API (requires app changes):**
+
+   ```json
+   "admin": { "listen": "unix//var/run/caddy/admin.sock" }
 ---
 
 ### H2: Setup Wizard Runs Unauthenticated on Network
@@ -540,9 +549,9 @@ def generate_and_save_secrets():
 
 ---
 
-### M3: No Rate Limiting on Test Route Endpoint
+### M3: Rate Limit Too Permissive on Test Route Endpoint
 **File:** `app/app.py:484-507`
-**Issue:** Route testing endpoint has rate limit of 30/hour, but doesn't prevent abuse of expensive health checks.
+**Issue:** Route testing endpoint is limited to 30 requests per hour, which is too high for an expensive health check and does not adequately prevent abuse.
 
 **Risk:**
 - Attacker can trigger expensive health checks
@@ -1235,20 +1244,28 @@ requests==2.31.0
 
 ## DOCKER COMPOSE SECURITY ISSUES
 
-### D1: All Services Running as Root
+### D1: Container Runtime Users Not Explicitly Defined
 **File:** `docker-compose.yml`
-**Issue:** No `user:` directive specified, containers run as root.
+**Issue:** No `user:` directive is specified in Compose, so services rely on each image's default runtime user. The app image explicitly switches to a non-root user (`USER appuser`), but other services may still run as root if their images default to root. This should be confirmed and, where necessary, overridden.
 
 **Fix:**
 ```yaml
 services:
   app:
+    # Optional: map container user to a specific host UID/GID if needed.
+    # The app image already uses a non-root user (e.g., `appuser`).
     user: "${USER_ID:-1000}:${GROUP_ID:-1000}"
     # ...
 
   caddy:
-    user: "1000:1000"  # Or create dedicated user
+    # Ensure Caddy does not run as root in the container; use a non-root UID/GID
+    # that matches the image's configured user, or create a dedicated user.
+    user: "1000:1000"
     # ...
+
+  # Repeat for other services as needed after confirming their image defaults:
+  #   - If an image already uses a non-root user, `user:` may be omitted or aligned.
+  #   - If an image defaults to root, set an appropriate non-root UID/GID here.
 ```
 
 ### D2: Networks Not Properly Isolated
