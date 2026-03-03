@@ -133,8 +133,29 @@ def test_validate_ip_private_only(temp_db):
     with pytest.raises(ValueError, match="Localhost"):
         temp_db.validate_ip('127.0.0.1')  # Localhost
     
-    with pytest.raises(ValueError, match="metadata"):
-        temp_db.validate_ip('169.254.169.254')  # Cloud metadata
+    with pytest.raises(ValueError, match="Link-local"):
+        temp_db.validate_ip('169.254.169.254')  # Cloud metadata (now caught as link-local)
+
+
+def test_validate_ip_blocked_metadata_ips(temp_db):
+    """Test SSRF blocklist covers all cloud metadata endpoints"""
+    with pytest.raises(ValueError, match="Cloud metadata"):
+        temp_db.validate_ip('fd00:ec2::254')  # AWS IPv6
+    
+    with pytest.raises(ValueError, match="Cloud metadata"):
+        temp_db.validate_ip('100.100.100.200')  # Alibaba Cloud
+    
+    with pytest.raises(ValueError, match="Link-local"):
+        temp_db.validate_ip('169.254.0.23')  # OpenStack (link-local)
+
+
+def test_validate_ip_link_local_blocked(temp_db):
+    """Test that link-local IPs are blocked"""
+    with pytest.raises(ValueError, match="Link-local"):
+        temp_db.validate_ip('169.254.1.1')
+    
+    with pytest.raises(ValueError, match="Link-local"):
+        temp_db.validate_ip('fe80::1')
 
 
 def test_validate_port(temp_db):

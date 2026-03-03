@@ -52,6 +52,14 @@ function showNotification(message, type = 'info') {
 // ============================================================================
 
 /**
+ * Get the CSRF token from the meta tag
+ * @returns {string} - The CSRF token value
+ */
+function getCsrfToken() {
+    return document.querySelector('meta[name="csrf-token"]')?.content || '';
+}
+
+/**
  * Make an API request with error handling
  * @param {string} url - The API endpoint
  * @param {object} options - Fetch options
@@ -62,6 +70,7 @@ async function apiRequest(url, options = {}) {
         const response = await fetch(url, {
             headers: {
                 'Content-Type': 'application/json',
+                'X-CSRFToken': getCsrfToken(),
                 ...options.headers
             },
             ...options
@@ -268,6 +277,7 @@ window.Utils = {
     showToast,
     showNotification,
     apiRequest,
+    getCsrfToken,
     debounce,
     validateEmail,
     validateIP,

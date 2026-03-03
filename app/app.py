@@ -4,6 +4,7 @@ Shark-no-Ninsho-Mon - OAuth2 Authentication Gateway with Reverse Proxy Route Man
 from flask import Flask, render_template, request, jsonify, Response
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
+from flask_wtf.csrf import CSRFProtect, generate_csrf
 import logging
 import fcntl
 import contextlib
@@ -76,6 +77,16 @@ limiter = Limiter(
     default_limits=[],
     storage_uri="memory://"
 )
+
+# Initialize CSRF protection
+csrf = CSRFProtect(app)
+
+
+@app.after_request
+def inject_csrf(response):
+    """Inject CSRF token header for JavaScript clients."""
+    response.headers['X-CSRF-Token'] = generate_csrf()
+    return response
 
 # Initialize route manager and Caddy manager
 route_manager = RouteManager(settings.routes_db_path)
@@ -243,6 +254,7 @@ def admin():
 
 @app.route('/health')
 @limiter.exempt
+@csrf.exempt
 def health():
     """Health check endpoint"""
     return jsonify({

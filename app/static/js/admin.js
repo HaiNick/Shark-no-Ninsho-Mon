@@ -300,14 +300,14 @@ async function handleSubmit(event) {
             // Update existing route
             response = await fetch(`/api/routes/${routeId}`, {
                 method: 'PUT',
-                headers: { 'Content-Type': 'application/json' },
+                headers: { 'Content-Type': 'application/json', 'X-CSRFToken': Utils.getCsrfToken() },
                 body: JSON.stringify(data)
             });
         } else {
             // Create new route
             response = await fetch('/api/routes', {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+                headers: { 'Content-Type': 'application/json', 'X-CSRFToken': Utils.getCsrfToken() },
                 body: JSON.stringify(data)
             });
         }
@@ -333,7 +333,8 @@ async function handleSubmit(event) {
 async function toggleRoute(routeId) {
     try {
         const response = await fetch(`/api/routes/${routeId}/toggle`, {
-            method: 'POST'
+            method: 'POST',
+            headers: { 'X-CSRFToken': Utils.getCsrfToken() }
         });
         
         const result = await response.json();
@@ -366,7 +367,8 @@ async function testRoute(routeId) {
     
     try {
         const response = await fetch(`/api/routes/${routeId}/test`, {
-            method: 'POST'
+            method: 'POST',
+            headers: { 'X-CSRFToken': Utils.getCsrfToken() }
         });
         
         const result = await response.json();
@@ -407,7 +409,8 @@ async function deleteRoute(routeId) {
     
     try {
         const response = await fetch(`/api/routes/${routeId}`, {
-            method: 'DELETE'
+            method: 'DELETE',
+            headers: { 'X-CSRFToken': Utils.getCsrfToken() }
         });
         
         const result = await response.json();

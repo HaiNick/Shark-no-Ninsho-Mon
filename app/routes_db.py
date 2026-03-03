@@ -197,6 +197,13 @@ class RouteManager:
             raise ValueError("Name cannot be empty")
         return cleaned
     
+    BLOCKED_IPS = {
+        '169.254.169.254',  # AWS/GCP/Azure (IPv4)
+        'fd00:ec2::254',    # AWS (IPv6)
+        '100.100.100.200',  # Alibaba Cloud
+        '169.254.0.23',     # OpenStack
+    }
+
     @staticmethod
     def validate_ip(ip: str):
         """Validate IP address - only allow private IPs"""
@@ -207,9 +214,17 @@ class RouteManager:
             if ip_obj.is_loopback:
                 raise ValueError("Localhost IPs are not allowed")
             
+            # Block link-local addresses
+            if ip_obj.is_link_local:
+                raise ValueError("Link-local IPs are not allowed")
+            
             # Block cloud metadata endpoints
-            if str(ip) == '169.254.169.254':
-                raise ValueError("Cloud metadata IP is not allowed")
+            if str(ip_obj) in RouteManager.BLOCKED_IPS:
+                raise ValueError("Cloud metadata IPs are not allowed")
+            
+            # Block reserved addresses
+            if ip_obj.is_reserved:
+                raise ValueError("Reserved IPs are not allowed")
             
             # Only allow private IPs
             if not ip_obj.is_private:
