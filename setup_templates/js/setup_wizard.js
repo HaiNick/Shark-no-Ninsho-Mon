@@ -9,6 +9,13 @@
 
 // Extract setup token from URL so it can be sent with every API request
 const SETUP_TOKEN = new URLSearchParams(window.location.search).get('token') || '';
+if (!SETUP_TOKEN) {
+    document.addEventListener('DOMContentLoaded', () => {
+        document.body.innerHTML = '<div style="padding:2em;text-align:center;font-family:sans-serif">' +
+            '<h2>Missing Setup Token</h2>' +
+            '<p>Please use the URL printed in the terminal when the setup wizard started.</p></div>';
+    });
+}
 
 /**
  * Make an API request with error handling
