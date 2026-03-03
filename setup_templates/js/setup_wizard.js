@@ -7,6 +7,9 @@
 // API Helpers
 // ============================================================================
 
+// Extract setup token from URL so it can be sent with every API request
+const SETUP_TOKEN = new URLSearchParams(window.location.search).get('token') || '';
+
 /**
  * Make an API request with error handling
  * @param {string} endpoint - The API endpoint
@@ -15,6 +18,9 @@
  * @returns {Promise<Object>} - Response data
  */
 async function apiRequest(endpoint, method = 'GET', data = null) {
+    const separator = endpoint.includes('?') ? '&' : '?';
+    const url = `${endpoint}${separator}token=${encodeURIComponent(SETUP_TOKEN)}`;
+
     const options = {
         method,
         headers: {
@@ -26,7 +32,7 @@ async function apiRequest(endpoint, method = 'GET', data = null) {
         options.body = JSON.stringify(data);
     }
     
-    const response = await fetch(endpoint, options);
+    const response = await fetch(url, options);
     return await response.json();
 }
 
