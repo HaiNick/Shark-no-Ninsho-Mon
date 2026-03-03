@@ -1,0 +1,31 @@
+name: Security Scan
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  security:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: |
+          pip install -r app/requirements.txt
+          pip install bandit
+
+      - name: Bandit security scan
+        run: bandit -r app/ -ll --exclude app/test
+
+      - name: Run tests
+        run: |
+          pip install pytest
+          cd app && python -m pytest test/ -q

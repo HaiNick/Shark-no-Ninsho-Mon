@@ -52,16 +52,16 @@
 
 | ID | Title | File(s) | Status |
 |----|-------|---------|--------|
-| [SNM-016](tickets/phase3/SNM-016.md) | Add comprehensive type hints throughout | All Python files | ⬜ Open |
-| [SNM-017](tickets/phase3/SNM-017.md) | Extract magic numbers/strings to constants file | Multiple | ⬜ Open |
-| [SNM-018](tickets/phase3/SNM-018.md) | Standardize error handling with custom exception classes | `app/errors.py` (new) | ⬜ Open |
-| [SNM-019](tickets/phase3/SNM-019.md) | Add request ID tracking middleware | All endpoints | ⬜ Open |
-| [SNM-020](tickets/phase3/SNM-020.md) | Fix client-side cache expiration in admin.js | `app/static/js/admin.js:39-46` | ⬜ Open |
-| [SNM-021](tickets/phase3/SNM-021.md) | Fix `target_path` default value (`''` → `'/'`) | `app/routes_db.py:66` | ⬜ Open |
-| [SNM-022](tickets/phase3/SNM-022.md) | Simplify and harden setup wizard permission fixing | `setup-wizard.py:27-95` | ⬜ Open |
-| [SNM-023](tickets/phase3/SNM-023.md) | Pin dependency versions in requirements.lock | `app/requirements.txt` | ⬜ Open |
-| [SNM-024](tickets/phase3/SNM-024.md) | Add Flask-Talisman for security headers | `app/app.py` | ⬜ Open |
-| [SNM-025](tickets/phase3/SNM-025.md) | Set up automated security scanning (safety, bandit) | CI / `.github/workflows` | ⬜ Open |
+| [SNM-016](tickets/phase3/SNM-016.md) | Add comprehensive type hints throughout | All Python files | ✅ Done |
+| [SNM-017](tickets/phase3/SNM-017.md) | Extract magic numbers/strings to constants file | Multiple | ✅ Done |
+| [SNM-018](tickets/phase3/SNM-018.md) | Standardize error handling with custom exception classes | `app/errors.py` (new) | ✅ Done |
+| [SNM-019](tickets/phase3/SNM-019.md) | Add request ID tracking middleware | All endpoints | ✅ Done |
+| [SNM-020](tickets/phase3/SNM-020.md) | Fix client-side cache expiration in admin.js | `app/static/js/admin.js:39-46` | ✅ Done |
+| [SNM-021](tickets/phase3/SNM-021.md) | Fix `target_path` default value (`''` → `'/'`) | `app/routes_db.py:66` | ✅ Done |
+| [SNM-022](tickets/phase3/SNM-022.md) | Simplify and harden setup wizard permission fixing | `setup-wizard.py:27-95` | ✅ Done |
+| [SNM-023](tickets/phase3/SNM-023.md) | Pin dependency versions in requirements.lock | `app/requirements.txt` | ✅ Done |
+| [SNM-024](tickets/phase3/SNM-024.md) | Add Flask-Talisman for security headers | `app/app.py` | ✅ Done |
+| [SNM-025](tickets/phase3/SNM-025.md) | Set up automated security scanning (safety, bandit) | CI / `.github/workflows` | ✅ Done |
 
 ---
 

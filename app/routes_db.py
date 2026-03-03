@@ -96,7 +96,7 @@ class RouteManager:
                   target_port: int, protocol: str = 'http',
                   enabled: bool = True, health_check: bool = True,
                   timeout: int = 30, preserve_host: bool = False,
-                  websocket: bool = False, target_path: str = '') -> Dict:
+                  websocket: bool = False, target_path: str = '/') -> Dict:
         """Add a new route"""
         path = self.validate_path(path)
         name = self.validate_name(name)

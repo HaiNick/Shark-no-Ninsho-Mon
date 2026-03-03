@@ -1,13 +1,15 @@
 """
 Shark-no-Ninsho-Mon - OAuth2 Authentication Gateway with Reverse Proxy Route Manager
 """
-from flask import Flask, render_template, request, jsonify, Response
+from flask import Flask, render_template, request, jsonify, Response, g
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
 from flask_wtf.csrf import CSRFProtect, generate_csrf
+from flask_talisman import Talisman
 import logging
 import fcntl
 import contextlib
+import uuid
 from datetime import datetime
 import os
 import hashlib
@@ -26,9 +28,11 @@ load_dotenv()
 
 from routes_db import RouteManager
 from caddy_manager import CaddyManager
+from constants import Limits, RateLimits
+from errors import AppError
 
 # In-memory log storage for the web interface
-log_entries = collections.deque(maxlen=200)  # Keep only last 200 entries to save memory
+log_entries = collections.deque(maxlen=Limits.MAX_LOG_ENTRIES)
 
 class MemoryLogHandler(logging.Handler):
     """Custom log handler to store logs in memory for web interface"""
@@ -40,7 +44,7 @@ class MemoryLogHandler(logging.Handler):
                 log_entries.append({
                     'timestamp': datetime.fromtimestamp(record.created).strftime('%H:%M:%S'),
                     'level': record.levelname,
-                    'message': record.getMessage()[:500]  # Truncate long messages
+                    'message': record.getMessage()[:Limits.LOG_MESSAGE_MAX_LEN]
                 })
         except Exception:
             self.handleError(record)
@@ -81,11 +85,28 @@ limiter = Limiter(
 # Initialize CSRF protection
 csrf = CSRFProtect(app)
 
+# Security headers via Flask-Talisman
+# force_https=False because TLS is handled by Caddy/Tailscale at the edge
+Talisman(app, content_security_policy=False, force_https=False)
+
 
 @app.after_request
 def inject_csrf(response):
     """Inject CSRF token header for JavaScript clients."""
     response.headers['X-CSRF-Token'] = generate_csrf()
+    return response
+
+
+@app.before_request
+def add_request_id():
+    """Assign a request ID for log correlation."""
+    g.request_id = request.headers.get('X-Request-ID', str(uuid.uuid4()))
+
+
+@app.after_request
+def return_request_id(response):
+    """Return the request ID on every response."""
+    response.headers['X-Request-ID'] = g.get('request_id', '')
     return response
 
 # Initialize route manager and Caddy manager
@@ -200,7 +221,7 @@ def parse_bool(value: Any, default: bool = False) -> bool:
     return str(value).strip().lower() in {'1', 'true', 't', 'yes', 'on'}
 
 
-def get_user_email():
+def get_user_email() -> str:
     """Get user email from OAuth2 proxy headers"""
     # In production, validate that the request came through the proxy
     if not is_dev_mode() and PROXY_SECRET and not validate_proxy_request():
@@ -221,7 +242,7 @@ def get_user_email():
     return email
 
 
-def is_authorized():
+def is_authorized() -> bool:
     """Check if user is authorized"""
     # Development mode bypass
     if is_dev_mode():
@@ -546,7 +567,7 @@ def api_delete_route(route_id):
 
 
 _route_test_cooldowns: Dict[str, datetime] = {}
-_ROUTE_TEST_COOLDOWN_SEC = 30
+_ROUTE_TEST_COOLDOWN_SEC = Limits.ROUTE_TEST_COOLDOWN_SEC
 
 
 @app.route('/api/routes/<route_id>/test', methods=['POST'])
@@ -908,6 +929,12 @@ def check_route_status(route_path):
 # ERROR HANDLERS
 # ============================================================================
 
+@app.errorhandler(AppError)
+def handle_app_error(e):
+    """Handle custom application errors with consistent JSON response."""
+    return jsonify({'error': e.message}), e.status_code
+
+
 @app.errorhandler(404)
 def not_found(e):
     """Handle 404 errors"""
@@ -1007,7 +1034,7 @@ def health_check_worker(stop_event: threading.Event, interval: int):
             break
 
 
-def start_health_check_worker():
+def start_health_check_worker() -> None:
     """Start the health check worker if enabled."""
     global health_thread
 
