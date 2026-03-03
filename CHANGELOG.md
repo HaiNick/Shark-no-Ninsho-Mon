@@ -5,6 +5,110 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.0.0] - 2026-03-03
+
+### Security Enhancements
+
+#### Network & Port Hardening
+- **FIXED**: Removed Caddy Admin API public port mapping (`2019:2019`) from `docker-compose.yml`
+- **FIXED**: Flask port no longer published to host; only accessible via internal Docker network
+- **ADDED**: Docker network isolation — `internal: true` network for app/Caddy, `public` for oauth2-proxy
+- **ADDED**: HMAC-based `OAUTH_PROXY_SHARED_SECRET` validation for proxy header authentication
+
+#### CSRF Protection
+- **ADDED**: Flask-WTF CSRF protection on all state-changing endpoints (POST/PUT/DELETE)
+- **ADDED**: CSRF meta tag in `base.html` and `X-CSRFToken` header in all JS fetch calls
+- **ADDED**: `/health` endpoint exempted from CSRF checks
+
+#### SSRF Prevention
+- **IMPROVED**: Expanded IP blocklist with link-local, reserved, and cloud metadata endpoint checks
+- **ADDED**: `BLOCKED_IPS` set covering AWS, GCP, Azure, Alibaba Cloud, and OpenStack metadata IPs
+- **ADDED**: `is_link_local` and `is_reserved` IP validation checks
+
+#### Input Validation
+- **ADDED**: `validate_target_path()` rejects `..`, `//`, and non-alphanumeric characters
+- **IMPROVED**: Email validation with RFC 5321 length limits (254 total, 64 local part) and consecutive dot rejection
+- **FIXED**: `target_path` default changed from `''` to `'/'`
+
+#### Security Headers
+- **ADDED**: Flask-Talisman for `Strict-Transport-Security`, `X-Content-Type-Options`, and `X-Frame-Options` headers
+- **ADDED**: `force_https=False` since TLS termination is handled by Caddy/Tailscale
+
+#### Setup Wizard Hardening
+- **FIXED**: Setup wizard now binds to `127.0.0.1` (localhost only)
+- **ADDED**: Single-use security token required for wizard access (printed once at startup)
+
+#### DEV_MODE Safety
+- **ADDED**: CRITICAL log banner when `DEV_MODE=true`
+- **ADDED**: Warnings when DEV_MODE is active inside Docker or alongside OAuth credentials
+
+#### Email Allowlist Security
+- **ADDED**: File locking (`fcntl.flock()`) for atomic email allowlist read/write operations
+
+### Reliability Improvements
+
+#### Storage Migration
+- **CHANGED**: Routes storage migrated from TinyDB to SQLite with WAL mode
+- **ADDED**: Indexes on `path` and `enabled` columns for faster queries
+- **REMOVED**: TinyDB dependency from `requirements.txt`
+
+#### Health Check Worker
+- **IMPROVED**: Health checks use `ThreadPoolExecutor(max_workers=5)` with 10s per-check timeout
+- **ADDED**: Exponential backoff for failing routes (max 30 min between retries)
+
+#### Caddy Sync
+- **ADDED**: `threading.Lock()` with 30s timeout around `sync()` to prevent race conditions
+- **ADDED**: 1-second debounce between consecutive syncs
+
+#### Rate Limiting
+- **CHANGED**: Route test endpoint rate limit reduced from 30/hr to 10/hr
+- **ADDED**: Per-route 30-second cooldown with `retry_after` in 429 response
+
+#### TLS Verification
+- **FIXED**: `classify_service_status()` defaults to `verify=True` (was `verify=False`)
+- **ADDED**: `SSLError` caught and returned as `DOWN/tls_error` state
+- **ADDED**: Per-route `insecure_skip_verify` flag support
+
+#### Secrets Handling
+- **FIXED**: `generate-secrets.py` no longer prints secret values to stdout
+
+#### Docker Health Check
+- **CHANGED**: Container health check uses `urllib.request` instead of `requests` library
+
+### Code Quality
+
+#### New Files
+- **ADDED**: `app/constants.py` with `Limits`, `RateLimits`, `Defaults` classes
+- **ADDED**: `app/errors.py` with `AppError`, `ValidationError`, `AuthorizationError`, `NotFoundError`
+- **ADDED**: `app/requirements.lock` with pinned dependency versions
+
+#### Middleware
+- **ADDED**: `X-Request-ID` middleware for request correlation across logs
+
+#### Type Safety
+- **ADDED**: Type hints on public functions in `app.py`, `routes_db.py`, `caddy_manager.py`
+
+#### CI/CD
+- **ADDED**: `.github/workflows/security.yml` with Bandit scan and test runner on push/PR to main
+
+### Dependencies
+
+#### Added
+- `flask-wtf>=1.2.1` — CSRF protection
+- `flask-talisman>=1.1.0` — Security headers
+
+#### Removed
+- `tinydb>=4.8.0` — Replaced by SQLite (stdlib)
+
+### Migration Notes
+
+- **Breaking**: Routes storage changed from TinyDB (`routes.json`) to SQLite (`routes.db`). Manual migration required for existing deployments.
+- **Breaking**: Setup wizard now requires `?token=<value>` query parameter (token printed at startup).
+- **Config**: New optional env var `OAUTH_PROXY_SHARED_SECRET` for proxy header validation (see `.env.template`).
+- Flask port `8000` is no longer exposed to host — access via oauth2-proxy/Caddy only.
+
+---
+
 ## [2.0.0] - 2025-09-30
 
 ### Security Enhancements
@@ -251,5 +355,6 @@ python app/app.py
 
 ---
 
+[3.0.0]: https://github.com/HaiNick/Shark-no-Ninsho-Mon/releases/tag/v3.0.0
 [2.0.0]: https://github.com/HaiNick/Shark-no-Ninsho-Mon/releases/tag/v2.0.0
 [1.0.0]: https://github.com/HaiNick/Shark-no-Ninsho-Mon/releases/tag/v1.0.0

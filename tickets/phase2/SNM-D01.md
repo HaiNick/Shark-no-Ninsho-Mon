@@ -7,7 +7,7 @@
 | **Priority** | MEDIUM |
 | **Phase** | 2 — Short Term (Within Sprint) |
 | **File** | `docker-compose.yml` |
-| **Status** | ✅ Done |
+| **Status** | ⬜ Open |
 
 ---
 
@@ -35,9 +35,9 @@ services:
 
 ## PR Checkpoints
 
-- [x] `internal` network defined with `internal: true`
-- [x] Flask app only on `internal` network
-- [x] Caddy only on `internal` network
-- [x] oauth2-proxy on both `public` and `internal`
-- [x] `docker compose up` starts cleanly with new network config
-- [x] End-to-end auth flow still works after network changes
+- [ ] `internal` network defined with `internal: true`
+- [ ] Flask app only on `internal` network
+- [ ] Caddy only on `internal` network
+- [ ] oauth2-proxy on both `public` and `internal`
+- [ ] `docker compose up` starts cleanly with new network config
+- [ ] End-to-end auth flow still works after network changes

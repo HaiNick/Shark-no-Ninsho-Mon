@@ -7,7 +7,7 @@
 | **Priority** | MEDIUM |
 | **Phase** | 2 — Short Term (Within Sprint) |
 | **File** | `docker-compose.yml` |
-| **Status** | ✅ Done |
+| **Status** | ⬜ Open |
 
 ---
 
@@ -25,7 +25,7 @@ user: "1000:1000"
 
 ## PR Checkpoints
 
-- [x] Each service verified for its default runtime user
-- [x] `user:` directive added to any service running as root
-- [x] Flask app UID confirmed to match `appuser` in Dockerfile
-- [x] All services start without permission errors after change
+- [ ] Each service verified for its default runtime user
+- [ ] `user:` directive added to any service running as root
+- [ ] Flask app UID confirmed to match `appuser` in Dockerfile
+- [ ] All services start without permission errors after change

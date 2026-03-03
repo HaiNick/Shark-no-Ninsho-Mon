@@ -7,7 +7,7 @@
 | **Priority** | LOW |
 | **Phase** | 2 — Short Term (Within Sprint) |
 | **File** | `docker-compose.yml:23` |
-| **Status** | ✅ Done |
+| **Status** | ⬜ Open |
 
 ---
 
@@ -27,6 +27,6 @@ healthcheck:
 
 ## PR Checkpoints
 
-- [x] Health check uses `urllib.request` instead of `requests` library
-- [x] `docker compose ps` shows `healthy` status for app container
-- [x] Health check interval, timeout, and retries are explicitly set
+- [ ] Health check uses `wget` or `curl` instead of Python
+- [ ] `docker compose ps` shows `healthy` status for app container
+- [ ] Health check interval, timeout, and retries are explicitly set

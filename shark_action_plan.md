@@ -16,13 +16,13 @@
 
 | ID | Title | File | Status |
 |----|-------|------|--------|
-| [SNM-001](tickets/phase1/SNM-001.md) | Remove Caddy Admin API public port exposure | `docker-compose.yml:96` | ✅ Done |
-| [SNM-002](tickets/phase1/SNM-002.md) | Secure / disable setup wizard after initial setup | `setup-wizard.py:833` | ✅ Done |
-| [SNM-003](tickets/phase1/SNM-003.md) | Validate OAuth2 header source in Flask | `app/app.py:144-158` | ✅ Done |
-| [SNM-004](tickets/phase1/SNM-004.md) | Add DEV_MODE safety checks and startup warnings | `app/app.py:155-156` | ✅ Done |
-| [SNM-005](tickets/phase1/SNM-005.md) | Add CSRF protection to all state-changing endpoints | `app/app.py` (all POST/PUT/DELETE) | ✅ Done |
-| [SNM-006](tickets/phase1/SNM-006.md) | Fix email allowlist race conditions with file locking | `app/app.py:584-651` | ✅ Done |
-| [SNM-007](tickets/phase1/SNM-007.md) | Expand SSRF blocklist for cloud metadata IPs | `app/routes_db.py:202-219` | ✅ Done |
+| [SNM-001](tickets/phase1/SNM-001.md) | Remove Caddy Admin API public port exposure | `docker-compose.yml:96` | ⬜ Open |
+| [SNM-002](tickets/phase1/SNM-002.md) | Secure / disable setup wizard after initial setup | `setup-wizard.py:833` | ⬜ Open |
+| [SNM-003](tickets/phase1/SNM-003.md) | Validate OAuth2 header source in Flask | `app/app.py:144-158` | ⬜ Open |
+| [SNM-004](tickets/phase1/SNM-004.md) | Add DEV_MODE safety checks and startup warnings | `app/app.py:155-156` | ⬜ Open |
+| [SNM-005](tickets/phase1/SNM-005.md) | Add CSRF protection to all state-changing endpoints | `app/app.py` (all POST/PUT/DELETE) | ⬜ Open |
+| [SNM-006](tickets/phase1/SNM-006.md) | Fix email allowlist race conditions with file locking | `app/app.py:584-651` | ⬜ Open |
+| [SNM-007](tickets/phase1/SNM-007.md) | Expand SSRF blocklist for cloud metadata IPs | `app/routes_db.py:202-219` | ⬜ Open |
 
 ---
 
@@ -32,17 +32,17 @@
 
 | ID | Title | File | Status |
 |----|-------|------|--------|
-| [SNM-008](tickets/phase2/SNM-008.md) | Migrate routes storage from TinyDB to SQLite | `app/routes_db.py:37` | ✅ Done |
-| [SNM-009](tickets/phase2/SNM-009.md) | Prevent secrets from printing to console/logs | `setup-wizard.py:278`, `generate-secrets.py:100` | ✅ Done |
-| [SNM-010](tickets/phase2/SNM-010.md) | Reduce rate limit on route test endpoint | `app/app.py:484-507` | ✅ Done |
-| [SNM-011](tickets/phase2/SNM-011.md) | Add concurrency + backoff to health check worker | `app/app.py:861-890` | ✅ Done |
-| [SNM-012](tickets/phase2/SNM-012.md) | Add mutex lock + debounce to Caddy sync | `app/caddy_manager.py:56-87` | ✅ Done |
-| [SNM-013](tickets/phase2/SNM-013.md) | Add input validation on `target_path` | `app/routes_db.py:273` | ✅ Done |
-| [SNM-014](tickets/phase2/SNM-014.md) | Fix insecure TLS verification in health checks | `app/caddy_manager.py:333` | ✅ Done |
-| [SNM-015](tickets/phase2/SNM-015.md) | Tighten email validation regex | `app/app.py:85` | ✅ Done |
-| [SNM-D01](tickets/phase2/SNM-D01.md) | Isolate Docker networks (public/internal split) | `docker-compose.yml` | ✅ Done |
-| [SNM-D02](tickets/phase2/SNM-D02.md) | Confirm non-root container users for all services | `docker-compose.yml` | ✅ Done |
-| [SNM-D03](tickets/phase2/SNM-D03.md) | Replace Python health check with lightweight alternative | `docker-compose.yml:23` | ✅ Done |
+| [SNM-008](tickets/phase2/SNM-008.md) | Migrate routes storage from TinyDB to SQLite | `app/routes_db.py:37` | ⬜ Open |
+| [SNM-009](tickets/phase2/SNM-009.md) | Prevent secrets from printing to console/logs | `setup-wizard.py:278`, `generate-secrets.py:100` | ⬜ Open |
+| [SNM-010](tickets/phase2/SNM-010.md) | Reduce rate limit on route test endpoint | `app/app.py:484-507` | ⬜ Open |
+| [SNM-011](tickets/phase2/SNM-011.md) | Add concurrency + backoff to health check worker | `app/app.py:861-890` | ⬜ Open |
+| [SNM-012](tickets/phase2/SNM-012.md) | Add mutex lock + debounce to Caddy sync | `app/caddy_manager.py:56-87` | ⬜ Open |
+| [SNM-013](tickets/phase2/SNM-013.md) | Add input validation on `target_path` | `app/routes_db.py:273` | ⬜ Open |
+| [SNM-014](tickets/phase2/SNM-014.md) | Fix insecure TLS verification in health checks | `app/caddy_manager.py:333` | ⬜ Open |
+| [SNM-015](tickets/phase2/SNM-015.md) | Tighten email validation regex | `app/app.py:85` | ⬜ Open |
+| [SNM-D01](tickets/phase2/SNM-D01.md) | Isolate Docker networks (public/internal split) | `docker-compose.yml` | ⬜ Open |
+| [SNM-D02](tickets/phase2/SNM-D02.md) | Confirm non-root container users for all services | `docker-compose.yml` | ⬜ Open |
+| [SNM-D03](tickets/phase2/SNM-D03.md) | Replace Python health check with wget/curl | `docker-compose.yml:23` | ⬜ Open |
 
 ---
 
@@ -52,16 +52,16 @@
 
 | ID | Title | File(s) | Status |
 |----|-------|---------|--------|
-| [SNM-016](tickets/phase3/SNM-016.md) | Add comprehensive type hints throughout | All Python files | ✅ Done |
-| [SNM-017](tickets/phase3/SNM-017.md) | Extract magic numbers/strings to constants file | Multiple | ✅ Done |
-| [SNM-018](tickets/phase3/SNM-018.md) | Standardize error handling with custom exception classes | `app/errors.py` (new) | ✅ Done |
-| [SNM-019](tickets/phase3/SNM-019.md) | Add request ID tracking middleware | All endpoints | ✅ Done |
-| [SNM-020](tickets/phase3/SNM-020.md) | Fix client-side cache expiration in admin.js | `app/static/js/admin.js:39-46` | ✅ Done |
-| [SNM-021](tickets/phase3/SNM-021.md) | Fix `target_path` default value (`''` → `'/'`) | `app/routes_db.py:66` | ✅ Done |
-| [SNM-022](tickets/phase3/SNM-022.md) | Simplify and harden setup wizard permission fixing | `setup-wizard.py:27-95` | ✅ Done |
-| [SNM-023](tickets/phase3/SNM-023.md) | Pin dependency versions in requirements.lock | `app/requirements.txt` | ✅ Done |
-| [SNM-024](tickets/phase3/SNM-024.md) | Add Flask-Talisman for security headers | `app/app.py` | ✅ Done |
-| [SNM-025](tickets/phase3/SNM-025.md) | Set up automated security scanning (safety, bandit) | CI / `.github/workflows` | ✅ Done |
+| [SNM-016](tickets/phase3/SNM-016.md) | Add comprehensive type hints throughout | All Python files | ⬜ Open |
+| [SNM-017](tickets/phase3/SNM-017.md) | Extract magic numbers/strings to constants file | Multiple | ⬜ Open |
+| [SNM-018](tickets/phase3/SNM-018.md) | Standardize error handling with custom exception classes | `app/errors.py` (new) | ⬜ Open |
+| [SNM-019](tickets/phase3/SNM-019.md) | Add request ID tracking middleware | All endpoints | ⬜ Open |
+| [SNM-020](tickets/phase3/SNM-020.md) | Fix client-side cache expiration in admin.js | `app/static/js/admin.js:39-46` | ⬜ Open |
+| [SNM-021](tickets/phase3/SNM-021.md) | Fix `target_path` default value (`''` → `'/'`) | `app/routes_db.py:66` | ⬜ Open |
+| [SNM-022](tickets/phase3/SNM-022.md) | Simplify and harden setup wizard permission fixing | `setup-wizard.py:27-95` | ⬜ Open |
+| [SNM-023](tickets/phase3/SNM-023.md) | Pin dependency versions in requirements.lock | `app/requirements.txt` | ⬜ Open |
+| [SNM-024](tickets/phase3/SNM-024.md) | Add Flask-Talisman for security headers | `app/app.py` | ⬜ Open |
+| [SNM-025](tickets/phase3/SNM-025.md) | Set up automated security scanning (safety, bandit) | CI / `.github/workflows` | ⬜ Open |
 
 ---
 
