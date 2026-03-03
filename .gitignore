@@ -9,6 +9,9 @@ data/
 app/data/
 routes.json
 app/routes.json
+routes.db
+app/routes.db
+*.db
 
 # User authorization files (contains email addresses)
 emails.txt

@@ -1,12 +1,19 @@
 """
 Shark-no-Ninsho-Mon - OAuth2 Authentication Gateway with Reverse Proxy Route Manager
 """
-from flask import Flask, render_template, request, jsonify, Response
+from flask import Flask, render_template, request, jsonify, Response, g
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
+from flask_wtf.csrf import CSRFProtect, generate_csrf
+from flask_talisman import Talisman
 import logging
+import fcntl
+import contextlib
+import uuid
 from datetime import datetime
 import os
+import hashlib
+import hmac
 import threading
 from pathlib import Path
 from dotenv import load_dotenv
@@ -21,9 +28,11 @@ load_dotenv()
 
 from routes_db import RouteManager
 from caddy_manager import CaddyManager
+from constants import Limits, RateLimits
+from errors import AppError
 
 # In-memory log storage for the web interface
-log_entries = collections.deque(maxlen=200)  # Keep only last 200 entries to save memory
+log_entries = collections.deque(maxlen=Limits.MAX_LOG_ENTRIES)
 
 class MemoryLogHandler(logging.Handler):
     """Custom log handler to store logs in memory for web interface"""
@@ -35,7 +44,7 @@ class MemoryLogHandler(logging.Handler):
                 log_entries.append({
                     'timestamp': datetime.fromtimestamp(record.created).strftime('%H:%M:%S'),
                     'level': record.levelname,
-                    'message': record.getMessage()[:500]  # Truncate long messages
+                    'message': record.getMessage()[:Limits.LOG_MESSAGE_MAX_LEN]
                 })
         except Exception:
             self.handleError(record)
@@ -73,17 +82,88 @@ limiter = Limiter(
     storage_uri="memory://"
 )
 
+# Initialize CSRF protection
+csrf = CSRFProtect(app)
+
+# Security headers via Flask-Talisman
+# force_https=False because TLS is handled by Caddy/Tailscale at the edge
+Talisman(app, content_security_policy=False, force_https=False)
+
+
+@app.after_request
+def inject_csrf(response):
+    """Inject CSRF token header for JavaScript clients."""
+    response.headers['X-CSRF-Token'] = generate_csrf()
+    return response
+
+
+@app.before_request
+def add_request_id():
+    """Assign a request ID for log correlation."""
+    g.request_id = request.headers.get('X-Request-ID', str(uuid.uuid4()))
+
+
+@app.after_request
+def return_request_id(response):
+    """Return the request ID on every response."""
+    response.headers['X-Request-ID'] = g.get('request_id', '')
+    return response
+
 # Initialize route manager and Caddy manager
 route_manager = RouteManager(settings.routes_db_path)
 caddy_mgr = CaddyManager()  # uses http://caddy:2019 and :8080 by default
 
+# Shared secret for OAuth2 proxy header validation (defence-in-depth)
+PROXY_SECRET = os.environ.get('OAUTH_PROXY_SHARED_SECRET')
+
+
+def is_dev_mode() -> bool:
+    """Check if application is running in development mode."""
+    return os.environ.get('FLASK_ENV') == 'development' or os.environ.get('DEV_MODE', '').lower() == 'true'
+
+
+def validate_proxy_request() -> bool:
+    """Validate that the request came through the OAuth2 proxy using a shared secret."""
+    if is_dev_mode():
+        return True
+    sig = request.headers.get('X-Auth-Request-Signature')
+    if not sig or not PROXY_SECRET:
+        return False
+    expected = hmac.new(PROXY_SECRET.encode(), request.path.encode(), hashlib.sha256).hexdigest()
+    return hmac.compare_digest(sig, expected)
+
+
+@contextlib.contextmanager
+def locked_file(path, mode='r'):
+    """Open a file with an exclusive lock for atomic reads/writes."""
+    with open(path, mode, encoding='utf-8') as f:
+        fcntl.flock(f.fileno(), fcntl.LOCK_EX)
+        try:
+            yield f
+        finally:
+            fcntl.flock(f.fileno(), fcntl.LOCK_UN)
+
+
 def is_valid_email(email: str) -> bool:
-    """Validate email format using regex"""
+    """Validate email format with RFC 5321 length checks"""
     if not email or not isinstance(email, str):
         return False
-    # Basic but reliable email validation
+    addr = email.strip()
+    # RFC 5321 total length
+    if len(addr) > 254:
+        return False
+    parts = addr.split('@')
+    if len(parts) != 2:
+        return False
+    local, domain = parts
+    # Local part max 64 chars
+    if len(local) > 64 or not local:
+        return False
+    # Reject consecutive dots
+    if '..' in local or '..' in domain:
+        return False
     pattern = r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$'
-    return re.match(pattern, email.strip()) is not None
+    return re.match(pattern, addr) is not None
 
 def _load_authorized_emails(path: str) -> Set[str]:
     emails: Set[str] = set()
@@ -107,7 +187,7 @@ def _load_authorized_emails(path: str) -> Set[str]:
         logger.info(f"Created missing emails file at: {path_obj}")
 
     try:
-        with path_obj.open('r', encoding='utf-8') as handle:
+        with locked_file(str(path_obj), 'r') as handle:
             for line in handle:
                 stripped = line.strip()
                 if stripped and not stripped.startswith('#'):
@@ -141,8 +221,12 @@ def parse_bool(value: Any, default: bool = False) -> bool:
     return str(value).strip().lower() in {'1', 'true', 't', 'yes', 'on'}
 
 
-def get_user_email():
+def get_user_email() -> str:
     """Get user email from OAuth2 proxy headers"""
+    # In production, validate that the request came through the proxy
+    if not is_dev_mode() and PROXY_SECRET and not validate_proxy_request():
+        return ''
+
     # Try multiple header variations that oauth2-proxy might use
     email = (
         request.headers.get('X-Forwarded-Email') or
@@ -152,16 +236,16 @@ def get_user_email():
     ).lower().strip()
     
     # Development mode fallback
-    if not email and (os.environ.get('FLASK_ENV') == 'development' or os.environ.get('DEV_MODE') == 'true'):
+    if not email and is_dev_mode():
         return 'dev@localhost'
     
     return email
 
 
-def is_authorized():
+def is_authorized() -> bool:
     """Check if user is authorized"""
     # Development mode bypass
-    if os.environ.get('FLASK_ENV') == 'development' or os.environ.get('DEV_MODE') == 'true':
+    if is_dev_mode():
         return True
     
     email = get_user_email()
@@ -204,6 +288,7 @@ def admin():
 
 @app.route('/health')
 @limiter.exempt
+@csrf.exempt
 def health():
     """Health check endpoint"""
     return jsonify({
@@ -481,8 +566,12 @@ def api_delete_route(route_id):
         return jsonify({'error': 'Route not found'}), 404
 
 
+_route_test_cooldowns: Dict[str, datetime] = {}
+_ROUTE_TEST_COOLDOWN_SEC = Limits.ROUTE_TEST_COOLDOWN_SEC
+
+
 @app.route('/api/routes/<route_id>/test', methods=['POST'])
-@limiter.limit("30 per hour")
+@limiter.limit("10 per hour")
 def api_test_route(route_id):
     """Test route connectivity"""
     email = get_user_email()
@@ -490,10 +579,22 @@ def api_test_route(route_id):
     if not is_authorized():
         return jsonify({'error': 'Unauthorized'}), 403
     
+    # Per-route cooldown
+    last = _route_test_cooldowns.get(route_id)
+    if last:
+        elapsed = (datetime.now() - last).total_seconds()
+        remaining = _ROUTE_TEST_COOLDOWN_SEC - elapsed
+        if remaining > 0:
+            return jsonify({
+                'error': f'Please wait {int(remaining)}s before testing this route again',
+                'retry_after': int(remaining)
+            }), 429
+    
     route = route_manager.get_route_by_id(route_id)
     if not route:
         return jsonify({'error': 'Route not found'}), 404
     
+    _route_test_cooldowns[route_id] = datetime.now()
     result = caddy_mgr.test_connection(route)
     
     # Update route status in database
@@ -581,9 +682,8 @@ def api_add_email():
         return jsonify({'error': 'Email already exists'}), 400
     
     try:
-        # Add to file
-        path_obj = Path(settings.emails_file)
-        with path_obj.open('a', encoding='utf-8') as f:
+        # Add to file with locking
+        with locked_file(str(Path(settings.emails_file)), 'a') as f:
             f.write(f'{new_email}\n')
         
         # Refresh in-memory list
@@ -621,17 +721,17 @@ def api_remove_email(email_to_remove):
         return jsonify({'error': 'Cannot remove your own email'}), 400
     
     try:
-        # Read all emails
-        path_obj = Path(settings.emails_file)
-        emails = []
-        with path_obj.open('r', encoding='utf-8') as f:
+        # Read and rewrite with file lock for atomicity
+        email_file = str(Path(settings.emails_file))
+        with locked_file(email_file, 'r') as f:
+            emails = []
             for line in f:
                 stripped = line.strip()
                 if stripped and not stripped.startswith('#') and stripped.lower() != email_to_remove:
                     emails.append(stripped)
         
         # Write back without the removed email
-        with path_obj.open('w', encoding='utf-8') as f:
+        with locked_file(email_file, 'w') as f:
             for e in emails:
                 f.write(f'{e}\n')
         
@@ -684,12 +784,12 @@ def api_update_email(email_to_update):
         return jsonify({'error': 'Cannot update your own email for security reasons'}), 400
     
     try:
-        # Read all emails
-        path_obj = Path(settings.emails_file)
+        # Read and rewrite with file lock for atomicity
+        email_file = str(Path(settings.emails_file))
         emails = []
         updated = False
         
-        with path_obj.open('r', encoding='utf-8') as f:
+        with locked_file(email_file, 'r') as f:
             for line in f:
                 stripped = line.strip()
                 if stripped and not stripped.startswith('#'):
@@ -703,7 +803,7 @@ def api_update_email(email_to_update):
             return jsonify({'error': 'Email not found in file'}), 404
         
         # Write back with updated email
-        with path_obj.open('w', encoding='utf-8') as f:
+        with locked_file(email_file, 'w') as f:
             for e in emails:
                 f.write(f'{e}\n')
         
@@ -829,6 +929,12 @@ def check_route_status(route_path):
 # ERROR HANDLERS
 # ============================================================================
 
+@app.errorhandler(AppError)
+def handle_app_error(e):
+    """Handle custom application errors with consistent JSON response."""
+    return jsonify({'error': e.message}), e.status_code
+
+
 @app.errorhandler(404)
 def not_found(e):
     """Handle 404 errors"""
@@ -857,30 +963,69 @@ health_check_stop_event = threading.Event()
 health_thread_lock = threading.Lock()
 health_thread = None
 
+# Track consecutive failures per route for exponential backoff
+_health_failures: Dict[str, int] = {}
+
+
+def _check_single_route(route: Dict) -> None:
+    """Check a single route's health and update status."""
+    route_id = route['id']
+    try:
+        result = caddy_mgr.test_connection(route)
+
+        # Update with new enhanced status fields
+        route_manager.update_route_status(
+            route_id,
+            status=result.get('status'),
+            state=result.get('state'),
+            reason=result.get('reason'),
+            http_status=result.get('status_code'),
+            duration_ms=result.get('response_time'),
+            last_error=result.get('error') or result.get('detail')
+        )
+
+        if result.get('success'):
+            _health_failures[route_id] = 0
+        else:
+            _health_failures[route_id] = _health_failures.get(route_id, 0) + 1
+    except Exception as exc:
+        logger.error(f"HEALTH_CHECK_ROUTE_ERROR - Route {route_id}: {exc}")
+        _health_failures[route_id] = _health_failures.get(route_id, 0) + 1
+
 
 def health_check_worker(stop_event: threading.Event, interval: int):
-    """Background worker to check route health"""
+    """Background worker to check route health with concurrency and backoff"""
+    from concurrent.futures import ThreadPoolExecutor, as_completed
+
     logger.info(f"HEALTH_CHECK - Worker started with {interval}s interval")
 
     while not stop_event.is_set():
         try:
             routes = route_manager.get_all_routes()
+            eligible = []
             for route in routes:
-                if route.get('health_check', False) and route.get('enabled', True):
-                    result = caddy_mgr.test_connection(route)
-                    
-                    # Update with new enhanced status fields
-                    route_manager.update_route_status(
-                        route['id'],
-                        status=result.get('status'),  # Legacy field
-                        state=result.get('state'),
-                        reason=result.get('reason'),
-                        http_status=result.get('status_code'),
-                        duration_ms=result.get('response_time'),
-                        last_error=result.get('error') or result.get('detail')
-                    )
+                if not (route.get('health_check', False) and route.get('enabled', True)):
+                    continue
+                route_id = route['id']
+                failures = _health_failures.get(route_id, 0)
+                if failures > 0:
+                    backoff = min(60 * (2 ** failures), 1800)
+                    # Skip this cycle if backoff hasn't elapsed
+                    if failures > 0 and backoff > interval:
+                        continue
+                eligible.append(route)
 
-            logger.info(f"HEALTH_CHECK - Checked {len(routes)} routes")
+            checked = 0
+            with ThreadPoolExecutor(max_workers=5) as pool:
+                futures = {pool.submit(_check_single_route, r): r for r in eligible}
+                for future in as_completed(futures, timeout=10):
+                    try:
+                        future.result()
+                    except Exception as exc:
+                        logger.error(f"HEALTH_CHECK_FUTURE_ERROR - {exc}")
+                    checked += 1
+
+            logger.info(f"HEALTH_CHECK - Checked {checked}/{len(routes)} routes")
 
         except Exception as e:
             logger.error(f"HEALTH_CHECK_ERROR - {str(e)}")
@@ -889,7 +1034,7 @@ def health_check_worker(stop_event: threading.Event, interval: int):
             break
 
 
-def start_health_check_worker():
+def start_health_check_worker() -> None:
     """Start the health check worker if enabled."""
     global health_thread
 
@@ -937,5 +1082,16 @@ if __name__ == '__main__':
     logger.info(f"Starting Shark-no-Ninsho-Mon on port {port}")
     logger.info(f"Authorized emails: {len(AUTHORIZED_EMAILS)}")
     logger.info(f"Existing routes: {len(route_manager.get_all_routes())}")
+    
+    # DEV_MODE safety checks
+    if is_dev_mode():
+        logger.critical("=" * 60)
+        logger.critical("DEV_MODE ENABLED — ALL AUTHENTICATION BYPASSED")
+        logger.critical("NEVER use in production!")
+        logger.critical("=" * 60)
+        if os.path.exists('/.dockerenv'):
+            logger.error("DEV_MODE is active inside Docker — this is likely a mistake!")
+        if os.environ.get('OAUTH2_PROXY_CLIENT_ID'):
+            logger.error("DEV_MODE active with OAuth configured — unsafe!")
     
     app.run(host='0.0.0.0', port=port, debug=debug)

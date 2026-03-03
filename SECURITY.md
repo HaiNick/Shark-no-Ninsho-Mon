@@ -20,41 +20,62 @@ We release patches for security vulnerabilities in the following versions:
    - Google OAuth2 integration for user authentication
    - Email-based allowlist for authorization
    - Secure cookie handling with proper secrets
+   - HMAC-based proxy header validation (`OAUTH_PROXY_SHARED_SECRET`)
 
-2. **Rate Limiting**
+2. **CSRF Protection**
+   - Flask-WTF CSRF tokens on all state-changing endpoints
+   - Meta tag injection and JS header integration
+   - Health endpoint exempted for monitoring tools
+
+3. **Rate Limiting**
    - Default: 200 requests per day, 50 per hour per IP
-   - Logs endpoint: 10 requests per minute
+   - Route test endpoint: 10 per hour with 30s per-route cooldown
+   - Logs endpoint: 30 requests per minute
    - Prevents brute force and DDoS attacks
 
-3. **Environment Separation**
+4. **Environment Separation**
    - Production mode blocks anonymous users
-   - Development mode for testing only
+   - DEV_MODE logs CRITICAL banner and warns in Docker/OAuth contexts
    - Environment-specific configurations
 
-4. **Input Validation**
-   - Email normalization (case-insensitive)
-   - Header sanitization
-   - Path traversal prevention
+5. **Input Validation**
+   - Email normalization with RFC 5321 length checks (254 total, 64 local part)
+   - Target path validation (rejects `..`, `//`, invalid characters)
+   - IP validation with SSRF blocklist (AWS, GCP, Azure, Alibaba, OpenStack metadata)
+   - Header sanitization and path traversal prevention
 
-5. **Secure Defaults**
-   - HTTPS enforcement via Tailscale Funnel
+6. **Security Headers**
+   - Flask-Talisman provides `Strict-Transport-Security`, `X-Content-Type-Options: nosniff`, `X-Frame-Options: SAMEORIGIN`
+   - HTTPS enforcement via Tailscale Funnel at edge
    - Secure cookie flags (Secure, SameSite=Lax)
    - No secrets in repository (`.env` in `.gitignore`)
 
-6. **Container Security**
+7. **Network Isolation**
+   - Docker networks split into `public` and `internal` (with `internal: true`)
+   - Flask app and Caddy on internal network only
+   - Caddy Admin API not exposed to host
    - Non-root user in Docker container
    - Read-only volumes for sensitive files
-   - Minimal attack surface with slim base image
 
-7. **Logging & Monitoring**
-   - Comprehensive access logging
+8. **File Locking & Concurrency**
+   - Email allowlist operations use `fcntl.flock()` for atomicity
+   - Caddy sync guarded by `threading.Lock()` with debounce
+   - Routes stored in SQLite with WAL mode for concurrent access
+
+9. **Logging & Monitoring**
+   - Comprehensive access logging with `X-Request-ID` correlation
    - Unauthorized access attempt tracking
    - Incident ID generation for security events
 
-8. **Automated Dependency Management**
-   - Dependabot configured for weekly security updates
-   - Python (pip), Docker, and Docker Compose dependencies monitored
-   - Automated pull requests for vulnerability patches
+10. **Automated Dependency Management**
+    - Dependabot configured for weekly security updates
+    - Python (pip), Docker, and Docker Compose dependencies monitored
+    - Automated pull requests for vulnerability patches
+    - `requirements.lock` with pinned dependency versions
+
+11. **CI Security Scanning**
+    - Bandit static analysis on push and pull requests
+    - Automated test suite in GitHub Actions
 
 ## Reporting a Vulnerability
 
@@ -177,8 +198,10 @@ chmod 640 /app/access.log
 Before deploying to production:
 
 - [ ] Changed all default secrets
+- [ ] Configured `OAUTH_PROXY_SHARED_SECRET` for proxy validation (see `.env.template`)
 - [ ] Configured authorized emails properly
 - [ ] Set `FLASK_ENV=production`
+- [ ] Ensure `DEV_MODE` is **not** set to `true`
 - [ ] Enabled HTTPS via Tailscale Funnel
 - [ ] Restricted file permissions
 - [ ] Tested authentication flow
@@ -188,6 +211,8 @@ Before deploying to production:
 - [ ] Set up monitoring/alerting
 - [ ] Enabled Dependabot security alerts
 - [ ] Reviewed and configured `.github/dependabot.yml`
+- [ ] Verified Caddy Admin API (port 2019) is not exposed publicly
+- [ ] Verified Flask port (8000) is not exposed publicly
 
 ## Known Security Considerations
 
@@ -272,5 +297,5 @@ We thank the following for responsible disclosure:
 
 ---
 
-**Last Updated**: 2025-10-22  
+**Last Updated**: 2026-03-03  
 **Version**: 3.0.0

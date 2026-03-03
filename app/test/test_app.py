@@ -24,6 +24,7 @@ def client():
     app_module.route_manager = RouteManager(db_path)
     
     app.config['TESTING'] = True
+    app.config['WTF_CSRF_ENABLED'] = False
     with app.test_client() as client:
         yield client
     
@@ -50,6 +51,7 @@ def authorized_client(monkeypatch):
     app_module.route_manager = RouteManager(db_path)
     
     app.config['TESTING'] = True
+    app.config['WTF_CSRF_ENABLED'] = False
     
     # Mock authorized emails
     monkeypatch.setattr('app.AUTHORIZED_EMAILS', {'test@example.com'})

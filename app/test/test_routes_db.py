@@ -1,5 +1,5 @@
 """
-Unit tests for RouteManager (TinyDB wrapper)
+Unit tests for RouteManager (SQLite wrapper)
 """
 import pytest
 import os
@@ -10,14 +10,15 @@ from routes_db import RouteManager
 @pytest.fixture
 def temp_db():
     """Create a temporary database for testing"""
-    fd, path = tempfile.mkstemp(suffix='.json')
+    fd, path = tempfile.mkstemp(suffix='.db')
     os.close(fd)
     
     manager = RouteManager(path)
     yield manager
     
     # Cleanup
-    os.unlink(path)
+    if os.path.exists(path):
+        os.unlink(path)
 
 
 def test_add_route(temp_db):
@@ -133,8 +134,29 @@ def test_validate_ip_private_only(temp_db):
     with pytest.raises(ValueError, match="Localhost"):
         temp_db.validate_ip('127.0.0.1')  # Localhost
     
-    with pytest.raises(ValueError, match="metadata"):
-        temp_db.validate_ip('169.254.169.254')  # Cloud metadata
+    with pytest.raises(ValueError, match="Link-local"):
+        temp_db.validate_ip('169.254.169.254')  # Cloud metadata (now caught as link-local)
+
+
+def test_validate_ip_blocked_metadata_ips(temp_db):
+    """Test SSRF blocklist covers all cloud metadata endpoints"""
+    with pytest.raises(ValueError, match="Cloud metadata"):
+        temp_db.validate_ip('fd00:ec2::254')  # AWS IPv6
+    
+    with pytest.raises(ValueError, match="Cloud metadata"):
+        temp_db.validate_ip('100.100.100.200')  # Alibaba Cloud
+    
+    with pytest.raises(ValueError, match="Link-local"):
+        temp_db.validate_ip('169.254.0.23')  # OpenStack (link-local)
+
+
+def test_validate_ip_link_local_blocked(temp_db):
+    """Test that link-local IPs are blocked"""
+    with pytest.raises(ValueError, match="Link-local"):
+        temp_db.validate_ip('169.254.1.1')
+    
+    with pytest.raises(ValueError, match="Link-local"):
+        temp_db.validate_ip('fe80::1')
 
 
 def test_validate_port(temp_db):
@@ -171,10 +193,11 @@ def test_enabled_only_filter(temp_db):
 def test_missing_database_file_created(tmp_path):
     """RouteManager should create the database file if it doesn't exist."""
     missing_path = tmp_path / 'missing.json'
+    expected_db = tmp_path / 'missing.db'
 
     manager = RouteManager(str(missing_path))
-    assert missing_path.exists()
-    assert missing_path.is_file()
+    assert expected_db.exists()
+    assert expected_db.is_file()
 
     # Ensure we can interact with the database
     manager.add_route('/auto', 'Auto', '192.168.0.10', 8080)
@@ -183,7 +206,7 @@ def test_missing_database_file_created(tmp_path):
 
 def test_directory_path_replaced_with_file(tmp_path):
     """Empty directory mounts should be replaced with a file at the same path."""
-    directory_path = tmp_path / 'routes.json'
+    directory_path = tmp_path / 'routes.db'
     directory_path.mkdir()
 
     manager = RouteManager(str(directory_path))
@@ -197,14 +220,14 @@ def test_directory_path_replaced_with_file(tmp_path):
 
 def test_directory_with_existing_content_uses_nested_file(tmp_path):
     """If the directory already contains files, store database inside it."""
-    directory_path = tmp_path / 'routes.json'
+    directory_path = tmp_path / 'routes.db'
     directory_path.mkdir()
     marker = directory_path / 'keep.txt'
     marker.write_text('keep', encoding='utf-8')
 
     manager = RouteManager(str(directory_path))
 
-    nested_file = directory_path / 'routes.json'
+    nested_file = directory_path / 'routes.db'
     assert nested_file.exists()
     assert nested_file.is_file()
     assert marker.exists()

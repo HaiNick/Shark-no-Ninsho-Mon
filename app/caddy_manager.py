@@ -7,6 +7,7 @@ import json
 import logging
 import time
 import socket
+import threading
 from typing import List, Dict, Any, Optional, Tuple
 from urllib.parse import urlparse
 import requests
@@ -29,6 +30,9 @@ class CaddyManager:
         self.admin_url = admin_url or os.getenv("CADDY_ADMIN", "http://caddy:2019")
         self.listen_port = int(os.getenv("EDGE_PORT", listen_port))
         self.flask_upstream = flask_upstream
+        self._sync_lock = threading.Lock()
+        self._last_sync: float = 0.0
+        self._sync_debounce_sec: float = 1.0
 
     def sync(self, routes: List[Dict[str, Any]]) -> dict:
         """
@@ -48,43 +52,58 @@ class CaddyManager:
             "enabled": true
           }
         """
-        cfg = self._build_config(routes)
+        if not self._sync_lock.acquire(timeout=30):
+            log.error("CADDY_SYNC lock acquisition timed out after 30s")
+            return {"ok": False, "error": "lock timeout"}
 
-        # Extract just the routes array
-        routes_array = cfg["apps"]["http"]["servers"]["srv0"]["routes"]
-        url = f"{self.admin_url}/config/apps/http/servers/srv0/routes"
-        log.info(
-            "CADDY_SYNC replacing %d backend routes + 1 flask route",
-            max(0, len(routes_array) - 1),
-        )
-        log.debug("CADDY_SYNC routes JSON:\n%s", json.dumps(routes_array, indent=2))
+        try:
+            # Debounce: skip if less than 1s since last sync
+            elapsed = time.monotonic() - self._last_sync
+            if elapsed < self._sync_debounce_sec:
+                wait = self._sync_debounce_sec - elapsed
+                log.debug("CADDY_SYNC debounce: sleeping %.2fs", wait)
+                time.sleep(wait)
 
-        headers = {"Content-Type": "application/json"}
+            cfg = self._build_config(routes)
 
-        # Strategy:
-        # 1) Try PATCH with the full array (works on modern Caddy)
-        # 2) If that fails (409/4xx), DELETE the key then PUT to recreate it
-        r = requests.patch(url, json=routes_array, headers=headers, timeout=10)
-        if not r.ok:
-            log.warning(
-                "CADDY_SYNC PATCH failed (%s). Falling back to DELETE+PUT. Body: %s",
-                r.status_code,
-                r.text[:400],
+            # Extract just the routes array
+            routes_array = cfg["apps"]["http"]["servers"]["srv0"]["routes"]
+            url = f"{self.admin_url}/config/apps/http/servers/srv0/routes"
+            log.info(
+                "CADDY_SYNC replacing %d backend routes + 1 flask route",
+                max(0, len(routes_array) - 1),
             )
-            # Best-effort delete of the existing routes key
-            try:
-                d = requests.delete(url, timeout=10)
-                log.info("CADDY_SYNC DELETE routes -> %s", d.status_code)
-            except Exception as e:
-                log.warning("CADDY_SYNC DELETE error: %s", e)
+            log.debug("CADDY_SYNC routes JSON:\n%s", json.dumps(routes_array, indent=2))
 
-            r = requests.put(url, json=routes_array, headers=headers, timeout=10)
+            headers = {"Content-Type": "application/json"}
 
-        if not r.ok:
-            log.error("CADDY_SYNC final attempt failed: %s - %s", r.status_code, r.text)
-        r.raise_for_status()
-        log.info("CADDY_SYNC completed successfully")
-        return {"ok": True}
+            # Strategy:
+            # 1) Try PATCH with the full array (works on modern Caddy)
+            # 2) If that fails (409/4xx), DELETE the key then PUT to recreate it
+            r = requests.patch(url, json=routes_array, headers=headers, timeout=10)
+            if not r.ok:
+                log.warning(
+                    "CADDY_SYNC PATCH failed (%s). Falling back to DELETE+PUT. Body: %s",
+                    r.status_code,
+                    r.text[:400],
+                )
+                # Best-effort delete of the existing routes key
+                try:
+                    d = requests.delete(url, timeout=10)
+                    log.info("CADDY_SYNC DELETE routes -> %s", d.status_code)
+                except Exception as e:
+                    log.warning("CADDY_SYNC DELETE error: %s", e)
+
+                r = requests.put(url, json=routes_array, headers=headers, timeout=10)
+
+            if not r.ok:
+                log.error("CADDY_SYNC final attempt failed: %s - %s", r.status_code, r.text)
+            r.raise_for_status()
+            self._last_sync = time.monotonic()
+            log.info("CADDY_SYNC completed successfully")
+            return {"ok": True}
+        finally:
+            self._sync_lock.release()
 
     def _build_config(self, routes: List[Dict[str, Any]]) -> dict:
         # Base server (root portal -> Flask UI)
@@ -293,14 +312,14 @@ class CaddyManager:
 
         return {"match": [match], "handle": [handler], "terminal": True}
 
-    def classify_service_status(self, url: str, timeout_sec: int = 3, slow_ms: int = 2000) -> Tuple[str, str, Optional[str], Optional[int], Optional[int]]:
+    def classify_service_status(self, url: str, timeout_sec: int = 3, slow_ms: int = 2000, verify_tls: bool = True) -> Tuple[str, str, Optional[str], Optional[int], Optional[int]]:
         """
         Classify service status using a deterministic decision tree.
         
         Returns: (state, reason, detail_message, http_status, duration_ms)
         
         States: UP, DEGRADED, DOWN, UNKNOWN
-        Reasons: online, slow, error_5xx, timeout, offline_conn, offline_dns, misconfig, error_exc, unknown
+        Reasons: online, slow, error_5xx, timeout, offline_conn, offline_dns, misconfig, error_exc, tls_error, unknown
         """
         # 1) Input sanity
         try:
@@ -330,7 +349,7 @@ class CaddyManager:
         # 4) HTTP request
         try:
             start = time.perf_counter()
-            resp = requests.get(url, timeout=timeout_sec, allow_redirects=True, verify=False)
+            resp = requests.get(url, timeout=timeout_sec, allow_redirects=True, verify=verify_tls)
             dur_ms = int((time.perf_counter() - start) * 1000)
 
             if resp.status_code >= 500:
@@ -339,6 +358,8 @@ class CaddyManager:
                 return ("DEGRADED", "slow", f"HTTP {resp.status_code} in {dur_ms} ms", resp.status_code, dur_ms)
             return ("UP", "online", f"HTTP {resp.status_code} in {dur_ms} ms", resp.status_code, dur_ms)
 
+        except requests.exceptions.SSLError as e:
+            return ("DOWN", "tls_error", f"TLS/SSL error: {e}", None, None)
         except requests.exceptions.Timeout:
             return ("DOWN", "timeout", f"HTTP timeout after {timeout_sec}s", None, None)
         except Exception as e:
@@ -380,8 +401,9 @@ class CaddyManager:
         slow_ms = settings.slow_threshold_ms
 
         # Use new classification logic
+        verify_tls = not insecure_skip_verify
         state, reason, detail, http_status, duration_ms = self.classify_service_status(
-            target_url, timeout_sec, slow_ms
+            target_url, timeout_sec, slow_ms, verify_tls=verify_tls
         )
 
         # Map state to legacy status for backward compatibility
