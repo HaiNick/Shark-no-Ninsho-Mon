@@ -8,8 +8,10 @@ services:
         # Default to 1000:1000 if not specified
         USER_ID: ${USER_ID:-1000}
         GROUP_ID: ${GROUP_ID:-1000}
-    ports:
-      - "8000:8000"         # Expose to LAN for direct access
+    # ports:
+    #   - "8000:8000"       # No longer exposed publicly; access via Caddy/oauth2-proxy
+    expose:
+      - "8000"               # Only accessible within Docker network
     volumes:
       - ./emails.txt:/emails.txt:rw
       - ./app/data:/app/data  # Persist route configuration via bind mount (local directory)
@@ -93,7 +95,6 @@ services:
       - caddy_config:/config
     ports:
       - "8080:8080"   # local edge proxy HTTP
-      - "2019:2019"   # Caddy Admin API
     networks:
       - default
     logging:

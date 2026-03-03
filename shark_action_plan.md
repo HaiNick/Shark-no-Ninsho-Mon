@@ -16,12 +16,12 @@
 
 | ID | Title | File | Status |
 |----|-------|------|--------|
-| [SNM-001](tickets/phase1/SNM-001.md) | Remove Caddy Admin API public port exposure | `docker-compose.yml:96` | ⬜ Open |
-| [SNM-002](tickets/phase1/SNM-002.md) | Secure / disable setup wizard after initial setup | `setup-wizard.py:833` | ⬜ Open |
-| [SNM-003](tickets/phase1/SNM-003.md) | Validate OAuth2 header source in Flask | `app/app.py:144-158` | ⬜ Open |
-| [SNM-004](tickets/phase1/SNM-004.md) | Add DEV_MODE safety checks and startup warnings | `app/app.py:155-156` | ⬜ Open |
+| [SNM-001](tickets/phase1/SNM-001.md) | Remove Caddy Admin API public port exposure | `docker-compose.yml:96` | ✅ Done |
+| [SNM-002](tickets/phase1/SNM-002.md) | Secure / disable setup wizard after initial setup | `setup-wizard.py:833` | ✅ Done |
+| [SNM-003](tickets/phase1/SNM-003.md) | Validate OAuth2 header source in Flask | `app/app.py:144-158` | ✅ Done |
+| [SNM-004](tickets/phase1/SNM-004.md) | Add DEV_MODE safety checks and startup warnings | `app/app.py:155-156` | ✅ Done |
 | [SNM-005](tickets/phase1/SNM-005.md) | Add CSRF protection to all state-changing endpoints | `app/app.py` (all POST/PUT/DELETE) | ⬜ Open |
-| [SNM-006](tickets/phase1/SNM-006.md) | Fix email allowlist race conditions with file locking | `app/app.py:584-651` | ⬜ Open |
+| [SNM-006](tickets/phase1/SNM-006.md) | Fix email allowlist race conditions with file locking | `app/app.py:584-651` | ✅ Done |
 | [SNM-007](tickets/phase1/SNM-007.md) | Expand SSRF blocklist for cloud metadata IPs | `app/routes_db.py:202-219` | ⬜ Open |
 
 ---

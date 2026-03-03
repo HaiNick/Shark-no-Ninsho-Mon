@@ -5,8 +5,12 @@ from flask import Flask, render_template, request, jsonify, Response
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
 import logging
+import fcntl
+import contextlib
 from datetime import datetime
 import os
+import hashlib
+import hmac
 import threading
 from pathlib import Path
 from dotenv import load_dotenv
@@ -77,6 +81,37 @@ limiter = Limiter(
 route_manager = RouteManager(settings.routes_db_path)
 caddy_mgr = CaddyManager()  # uses http://caddy:2019 and :8080 by default
 
+# Shared secret for OAuth2 proxy header validation (defence-in-depth)
+PROXY_SECRET = os.environ.get('OAUTH_PROXY_SHARED_SECRET')
+
+
+def is_dev_mode() -> bool:
+    """Check if application is running in development mode."""
+    return os.environ.get('FLASK_ENV') == 'development' or os.environ.get('DEV_MODE', '').lower() == 'true'
+
+
+def validate_proxy_request() -> bool:
+    """Validate that the request came through the OAuth2 proxy using a shared secret."""
+    if is_dev_mode():
+        return True
+    sig = request.headers.get('X-Auth-Request-Signature')
+    if not sig or not PROXY_SECRET:
+        return False
+    expected = hmac.new(PROXY_SECRET.encode(), request.path.encode(), hashlib.sha256).hexdigest()
+    return hmac.compare_digest(sig, expected)
+
+
+@contextlib.contextmanager
+def locked_file(path, mode='r'):
+    """Open a file with an exclusive lock for atomic reads/writes."""
+    with open(path, mode, encoding='utf-8') as f:
+        fcntl.flock(f.fileno(), fcntl.LOCK_EX)
+        try:
+            yield f
+        finally:
+            fcntl.flock(f.fileno(), fcntl.LOCK_UN)
+
+
 def is_valid_email(email: str) -> bool:
     """Validate email format using regex"""
     if not email or not isinstance(email, str):
@@ -107,7 +142,7 @@ def _load_authorized_emails(path: str) -> Set[str]:
         logger.info(f"Created missing emails file at: {path_obj}")
 
     try:
-        with path_obj.open('r', encoding='utf-8') as handle:
+        with locked_file(str(path_obj), 'r') as handle:
             for line in handle:
                 stripped = line.strip()
                 if stripped and not stripped.startswith('#'):
@@ -143,6 +178,10 @@ def parse_bool(value: Any, default: bool = False) -> bool:
 
 def get_user_email():
     """Get user email from OAuth2 proxy headers"""
+    # In production, validate that the request came through the proxy
+    if not is_dev_mode() and PROXY_SECRET and not validate_proxy_request():
+        return ''
+
     # Try multiple header variations that oauth2-proxy might use
     email = (
         request.headers.get('X-Forwarded-Email') or
@@ -152,7 +191,7 @@ def get_user_email():
     ).lower().strip()
     
     # Development mode fallback
-    if not email and (os.environ.get('FLASK_ENV') == 'development' or os.environ.get('DEV_MODE') == 'true'):
+    if not email and is_dev_mode():
         return 'dev@localhost'
     
     return email
@@ -161,7 +200,7 @@ def get_user_email():
 def is_authorized():
     """Check if user is authorized"""
     # Development mode bypass
-    if os.environ.get('FLASK_ENV') == 'development' or os.environ.get('DEV_MODE') == 'true':
+    if is_dev_mode():
         return True
     
     email = get_user_email()
@@ -581,9 +620,8 @@ def api_add_email():
         return jsonify({'error': 'Email already exists'}), 400
     
     try:
-        # Add to file
-        path_obj = Path(settings.emails_file)
-        with path_obj.open('a', encoding='utf-8') as f:
+        # Add to file with locking
+        with locked_file(str(Path(settings.emails_file)), 'a') as f:
             f.write(f'{new_email}\n')
         
         # Refresh in-memory list
@@ -621,17 +659,17 @@ def api_remove_email(email_to_remove):
         return jsonify({'error': 'Cannot remove your own email'}), 400
     
     try:
-        # Read all emails
-        path_obj = Path(settings.emails_file)
-        emails = []
-        with path_obj.open('r', encoding='utf-8') as f:
+        # Read and rewrite with file lock for atomicity
+        email_file = str(Path(settings.emails_file))
+        with locked_file(email_file, 'r') as f:
+            emails = []
             for line in f:
                 stripped = line.strip()
                 if stripped and not stripped.startswith('#') and stripped.lower() != email_to_remove:
                     emails.append(stripped)
         
         # Write back without the removed email
-        with path_obj.open('w', encoding='utf-8') as f:
+        with locked_file(email_file, 'w') as f:
             for e in emails:
                 f.write(f'{e}\n')
         
@@ -684,12 +722,12 @@ def api_update_email(email_to_update):
         return jsonify({'error': 'Cannot update your own email for security reasons'}), 400
     
     try:
-        # Read all emails
-        path_obj = Path(settings.emails_file)
+        # Read and rewrite with file lock for atomicity
+        email_file = str(Path(settings.emails_file))
         emails = []
         updated = False
         
-        with path_obj.open('r', encoding='utf-8') as f:
+        with locked_file(email_file, 'r') as f:
             for line in f:
                 stripped = line.strip()
                 if stripped and not stripped.startswith('#'):
@@ -703,7 +741,7 @@ def api_update_email(email_to_update):
             return jsonify({'error': 'Email not found in file'}), 404
         
         # Write back with updated email
-        with path_obj.open('w', encoding='utf-8') as f:
+        with locked_file(email_file, 'w') as f:
             for e in emails:
                 f.write(f'{e}\n')
         
@@ -937,5 +975,16 @@ if __name__ == '__main__':
     logger.info(f"Starting Shark-no-Ninsho-Mon on port {port}")
     logger.info(f"Authorized emails: {len(AUTHORIZED_EMAILS)}")
     logger.info(f"Existing routes: {len(route_manager.get_all_routes())}")
+    
+    # DEV_MODE safety checks
+    if is_dev_mode():
+        logger.critical("=" * 60)
+        logger.critical("DEV_MODE ENABLED — ALL AUTHENTICATION BYPASSED")
+        logger.critical("NEVER use in production!")
+        logger.critical("=" * 60)
+        if os.path.exists('/.dockerenv'):
+            logger.error("DEV_MODE is active inside Docker — this is likely a mistake!")
+        if os.environ.get('OAUTH2_PROXY_CLIENT_ID'):
+            logger.error("DEV_MODE active with OAuth configured — unsafe!")
     
     app.run(host='0.0.0.0', port=port, debug=debug)

@@ -18,10 +18,22 @@ from flask import Flask, render_template, request, jsonify
 app = Flask(__name__, template_folder='setup_templates',
             static_folder='setup_templates')
 
+# Single-use security token — printed once at startup
+SETUP_TOKEN = secrets.token_urlsafe(32)
+
 # Determine OS
 IS_WINDOWS = platform.system() == 'Windows'
 IS_LINUX = platform.system() == 'Linux'
 IS_MAC = platform.system() == 'Darwin'
+
+
+@app.before_request
+def check_setup_token():
+    """Require a valid token for all non-static requests."""
+    if request.endpoint == 'static':
+        return
+    if request.args.get('token') != SETUP_TOKEN:
+        return jsonify({'error': 'Invalid or missing setup token'}), 403
 
 
 def fix_file_permissions(filepath, recursive=False):
@@ -795,44 +807,19 @@ def main():
     # Start Flask server
     print("=" * 70)
     print("Starting setup wizard web interface...")
-    print("\n   Open your browser and navigate to:")
-    print("   \033[1;36mhttp://localhost:8080\033[0m (from this machine)")
-    
-    # Try to get local network IP address (no internet required)
-    try:
-        import socket
-        # Get hostname and resolve to local IP
-        hostname = socket.gethostname()
-        local_ip = socket.gethostbyname(hostname)
-        
-        # Filter out localhost addresses
-        if local_ip and not local_ip.startswith('127.'):
-            print(f"   \033[1;36mhttp://{local_ip}:8080\033[0m (from other devices on your LAN)\n")
-        else:
-            # Fallback: try to get IP from all network interfaces
-            import platform
-            if platform.system() == 'Windows':
-                print("   \033[1;36mhttp://<your-ip>:8080\033[0m (from other devices on your LAN)\n")
-                print("   Run 'ipconfig' to find your local IP address\n")
-            else:
-                print("   \033[1;36mhttp://<your-ip>:8080\033[0m (from other devices on your LAN)\n")
-                print("   Run 'ip addr' or 'ifconfig' to find your local IP address\n")
-    except Exception:
-        import platform
-        if platform.system() == 'Windows':
-            print("   \033[1;36mhttp://<your-ip>:8080\033[0m (from other devices on your LAN)\n")
-            print("   Run 'ipconfig' to find your local IP address\n")
-        else:
-            print("   \033[1;36mhttp://<your-ip>:8080\033[0m (from other devices on your LAN)\n")
-            print("   Run 'ip addr' or 'ifconfig' to find your local IP address\n")
+    print(f"\n   [SETUP] Open: \033[1;36mhttp://localhost:8080?token={SETUP_TOKEN}\033[0m")
+    print("\n   \033[1;33mThis token is required to access the wizard.\033[0m")
+    print("   \033[1;33mDo not share this URL with untrusted parties.\033[0m\n")
     
     print("=" * 70)
     print("\nPress CTRL+C to stop the setup wizard\n")
 
     try:
-        app.run(host='0.0.0.0', port=8080, debug=False)
+        app.run(host='127.0.0.1', port=8080, debug=False)
     except KeyboardInterrupt:
         print("\n\nSetup wizard stopped.")
+        print("\n\033[1;33m[REMINDER] If running in Docker, stop the wizard container:\033[0m")
+        print("  docker compose down\n")
         sys.exit(0)
 
 
