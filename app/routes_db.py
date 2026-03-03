@@ -108,7 +108,7 @@ class RouteManager:
         websocket = self._coerce_bool(websocket)
         enabled = self._coerce_bool(enabled)
         health_check = self._coerce_bool(health_check)
-        target_path = str(target_path).strip()
+        target_path = self.validate_target_path(target_path)
 
         # Check for duplicate path
         if self.get_route_by_path(path):
@@ -339,6 +339,22 @@ class RouteManager:
             raise ValueError("Protocol must be either 'http' or 'https'")
         return value
 
+    @staticmethod
+    def validate_target_path(target_path: str) -> str:
+        """Validate and sanitize target path."""
+        if not target_path or not str(target_path).strip():
+            return '/'
+        path = str(target_path).strip()
+        if not path.startswith('/'):
+            path = '/' + path
+        if '..' in path:
+            raise ValueError("Invalid target path: '..' is not allowed")
+        if '//' in path:
+            raise ValueError("Invalid target path: '//' is not allowed")
+        if not re.match(r'^/[a-zA-Z0-9/_.\-]*$', path):
+            raise ValueError("Target path contains invalid characters")
+        return path
+
     def _sanitize_updates(self, updates: Dict) -> Dict:
         """Whitelist and validate update fields."""
         sanitized: Dict = {}
@@ -357,7 +373,7 @@ class RouteManager:
             sanitized['target_port'] = self.validate_port(updates['target_port'])
 
         if 'target_path' in updates:
-            sanitized['target_path'] = str(updates['target_path']).strip()
+            sanitized['target_path'] = self.validate_target_path(updates['target_path'])
 
         if 'protocol' in updates:
             sanitized['protocol'] = self.validate_protocol(updates['protocol'])

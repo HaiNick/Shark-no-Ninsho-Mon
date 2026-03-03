@@ -124,12 +124,25 @@ def locked_file(path, mode='r'):
 
 
 def is_valid_email(email: str) -> bool:
-    """Validate email format using regex"""
+    """Validate email format with RFC 5321 length checks"""
     if not email or not isinstance(email, str):
         return False
-    # Basic but reliable email validation
+    addr = email.strip()
+    # RFC 5321 total length
+    if len(addr) > 254:
+        return False
+    parts = addr.split('@')
+    if len(parts) != 2:
+        return False
+    local, domain = parts
+    # Local part max 64 chars
+    if len(local) > 64 or not local:
+        return False
+    # Reject consecutive dots
+    if '..' in local or '..' in domain:
+        return False
     pattern = r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$'
-    return re.match(pattern, email.strip()) is not None
+    return re.match(pattern, addr) is not None
 
 def _load_authorized_emails(path: str) -> Set[str]:
     emails: Set[str] = set()
@@ -532,8 +545,12 @@ def api_delete_route(route_id):
         return jsonify({'error': 'Route not found'}), 404
 
 
+_route_test_cooldowns: Dict[str, datetime] = {}
+_ROUTE_TEST_COOLDOWN_SEC = 30
+
+
 @app.route('/api/routes/<route_id>/test', methods=['POST'])
-@limiter.limit("30 per hour")
+@limiter.limit("10 per hour")
 def api_test_route(route_id):
     """Test route connectivity"""
     email = get_user_email()
@@ -541,10 +558,22 @@ def api_test_route(route_id):
     if not is_authorized():
         return jsonify({'error': 'Unauthorized'}), 403
     
+    # Per-route cooldown
+    last = _route_test_cooldowns.get(route_id)
+    if last:
+        elapsed = (datetime.now() - last).total_seconds()
+        remaining = _ROUTE_TEST_COOLDOWN_SEC - elapsed
+        if remaining > 0:
+            return jsonify({
+                'error': f'Please wait {int(remaining)}s before testing this route again',
+                'retry_after': int(remaining)
+            }), 429
+    
     route = route_manager.get_route_by_id(route_id)
     if not route:
         return jsonify({'error': 'Route not found'}), 404
     
+    _route_test_cooldowns[route_id] = datetime.now()
     result = caddy_mgr.test_connection(route)
     
     # Update route status in database
@@ -907,30 +936,69 @@ health_check_stop_event = threading.Event()
 health_thread_lock = threading.Lock()
 health_thread = None
 
+# Track consecutive failures per route for exponential backoff
+_health_failures: Dict[str, int] = {}
+
+
+def _check_single_route(route: Dict) -> None:
+    """Check a single route's health and update status."""
+    route_id = route['id']
+    try:
+        result = caddy_mgr.test_connection(route)
+
+        # Update with new enhanced status fields
+        route_manager.update_route_status(
+            route_id,
+            status=result.get('status'),
+            state=result.get('state'),
+            reason=result.get('reason'),
+            http_status=result.get('status_code'),
+            duration_ms=result.get('response_time'),
+            last_error=result.get('error') or result.get('detail')
+        )
+
+        if result.get('success'):
+            _health_failures[route_id] = 0
+        else:
+            _health_failures[route_id] = _health_failures.get(route_id, 0) + 1
+    except Exception as exc:
+        logger.error(f"HEALTH_CHECK_ROUTE_ERROR - Route {route_id}: {exc}")
+        _health_failures[route_id] = _health_failures.get(route_id, 0) + 1
+
 
 def health_check_worker(stop_event: threading.Event, interval: int):
-    """Background worker to check route health"""
+    """Background worker to check route health with concurrency and backoff"""
+    from concurrent.futures import ThreadPoolExecutor, as_completed
+
     logger.info(f"HEALTH_CHECK - Worker started with {interval}s interval")
 
     while not stop_event.is_set():
         try:
             routes = route_manager.get_all_routes()
+            eligible = []
             for route in routes:
-                if route.get('health_check', False) and route.get('enabled', True):
-                    result = caddy_mgr.test_connection(route)
-                    
-                    # Update with new enhanced status fields
-                    route_manager.update_route_status(
-                        route['id'],
-                        status=result.get('status'),  # Legacy field
-                        state=result.get('state'),
-                        reason=result.get('reason'),
-                        http_status=result.get('status_code'),
-                        duration_ms=result.get('response_time'),
-                        last_error=result.get('error') or result.get('detail')
-                    )
+                if not (route.get('health_check', False) and route.get('enabled', True)):
+                    continue
+                route_id = route['id']
+                failures = _health_failures.get(route_id, 0)
+                if failures > 0:
+                    backoff = min(60 * (2 ** failures), 1800)
+                    # Skip this cycle if backoff hasn't elapsed
+                    if failures > 0 and backoff > interval:
+                        continue
+                eligible.append(route)
 
-            logger.info(f"HEALTH_CHECK - Checked {len(routes)} routes")
+            checked = 0
+            with ThreadPoolExecutor(max_workers=5) as pool:
+                futures = {pool.submit(_check_single_route, r): r for r in eligible}
+                for future in as_completed(futures, timeout=10):
+                    try:
+                        future.result()
+                    except Exception as exc:
+                        logger.error(f"HEALTH_CHECK_FUTURE_ERROR - {exc}")
+                    checked += 1
+
+            logger.info(f"HEALTH_CHECK - Checked {checked}/{len(routes)} routes")
 
         except Exception as e:
             logger.error(f"HEALTH_CHECK_ERROR - {str(e)}")

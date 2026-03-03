@@ -32,17 +32,17 @@
 
 | ID | Title | File | Status |
 |----|-------|------|--------|
-| [SNM-008](tickets/phase2/SNM-008.md) | Migrate routes storage from TinyDB to SQLite | `app/routes_db.py:37` | ⬜ Open |
-| [SNM-009](tickets/phase2/SNM-009.md) | Prevent secrets from printing to console/logs | `setup-wizard.py:278`, `generate-secrets.py:100` | ⬜ Open |
-| [SNM-010](tickets/phase2/SNM-010.md) | Reduce rate limit on route test endpoint | `app/app.py:484-507` | ⬜ Open |
-| [SNM-011](tickets/phase2/SNM-011.md) | Add concurrency + backoff to health check worker | `app/app.py:861-890` | ⬜ Open |
-| [SNM-012](tickets/phase2/SNM-012.md) | Add mutex lock + debounce to Caddy sync | `app/caddy_manager.py:56-87` | ⬜ Open |
-| [SNM-013](tickets/phase2/SNM-013.md) | Add input validation on `target_path` | `app/routes_db.py:273` | ⬜ Open |
-| [SNM-014](tickets/phase2/SNM-014.md) | Fix insecure TLS verification in health checks | `app/caddy_manager.py:333` | ⬜ Open |
-| [SNM-015](tickets/phase2/SNM-015.md) | Tighten email validation regex | `app/app.py:85` | ⬜ Open |
+| [SNM-008](tickets/phase2/SNM-008.md) | Migrate routes storage from TinyDB to SQLite | `app/routes_db.py:37` | ✅ Done |
+| [SNM-009](tickets/phase2/SNM-009.md) | Prevent secrets from printing to console/logs | `setup-wizard.py:278`, `generate-secrets.py:100` | ✅ Done |
+| [SNM-010](tickets/phase2/SNM-010.md) | Reduce rate limit on route test endpoint | `app/app.py:484-507` | ✅ Done |
+| [SNM-011](tickets/phase2/SNM-011.md) | Add concurrency + backoff to health check worker | `app/app.py:861-890` | ✅ Done |
+| [SNM-012](tickets/phase2/SNM-012.md) | Add mutex lock + debounce to Caddy sync | `app/caddy_manager.py:56-87` | ✅ Done |
+| [SNM-013](tickets/phase2/SNM-013.md) | Add input validation on `target_path` | `app/routes_db.py:273` | ✅ Done |
+| [SNM-014](tickets/phase2/SNM-014.md) | Fix insecure TLS verification in health checks | `app/caddy_manager.py:333` | ✅ Done |
+| [SNM-015](tickets/phase2/SNM-015.md) | Tighten email validation regex | `app/app.py:85` | ✅ Done |
 | [SNM-D01](tickets/phase2/SNM-D01.md) | Isolate Docker networks (public/internal split) | `docker-compose.yml` | ✅ Done |
-| [SNM-D02](tickets/phase2/SNM-D02.md) | Confirm non-root container users for all services | `docker-compose.yml` | ⬜ Open |
-| [SNM-D03](tickets/phase2/SNM-D03.md) | Replace Python health check with wget/curl | `docker-compose.yml:23` | ⬜ Open |
+| [SNM-D02](tickets/phase2/SNM-D02.md) | Confirm non-root container users for all services | `docker-compose.yml` | ✅ Done |
+| [SNM-D03](tickets/phase2/SNM-D03.md) | Replace Python health check with lightweight alternative | `docker-compose.yml:23` | ✅ Done |
 
 ---
 

@@ -93,15 +93,7 @@ def main():
     print("Generating secrets...")
     oauth_secret = generate_oauth_cookie_secret()
     flask_secret = generate_flask_secret_key()
-    print("Secrets generated!")
-    print()
-    
-    # Show secrets
-    print("Generated Secrets:")
-    print("-" * 70)
-    print(f"OAUTH2_PROXY_COOKIE_SECRET={oauth_secret}")
-    print(f"SECRET_KEY={flask_secret}")
-    print("-" * 70)
+    print("✓ Secrets generated successfully.")
     print()
     
     # Ask for confirmation
