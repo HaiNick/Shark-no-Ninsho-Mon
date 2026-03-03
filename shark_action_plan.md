@@ -40,7 +40,7 @@
 | [SNM-013](tickets/phase2/SNM-013.md) | Add input validation on `target_path` | `app/routes_db.py:273` | ⬜ Open |
 | [SNM-014](tickets/phase2/SNM-014.md) | Fix insecure TLS verification in health checks | `app/caddy_manager.py:333` | ⬜ Open |
 | [SNM-015](tickets/phase2/SNM-015.md) | Tighten email validation regex | `app/app.py:85` | ⬜ Open |
-| [SNM-D01](tickets/phase2/SNM-D01.md) | Isolate Docker networks (public/internal split) | `docker-compose.yml` | ⬜ Open |
+| [SNM-D01](tickets/phase2/SNM-D01.md) | Isolate Docker networks (public/internal split) | `docker-compose.yml` | ✅ Done |
 | [SNM-D02](tickets/phase2/SNM-D02.md) | Confirm non-root container users for all services | `docker-compose.yml` | ⬜ Open |
 | [SNM-D03](tickets/phase2/SNM-D03.md) | Replace Python health check with wget/curl | `docker-compose.yml:23` | ⬜ Open |
 

@@ -28,6 +28,8 @@ services:
       retries: 3
       start_period: 40s
     restart: unless-stopped
+    networks:
+      - internal
     logging:
       driver: "json-file"
       options:
@@ -79,6 +81,9 @@ services:
       retries: 3
       start_period: 40s
     restart: unless-stopped
+    networks:
+      - public
+      - internal
     logging:
       driver: "json-file"
       options:
@@ -96,12 +101,18 @@ services:
     ports:
       - "8080:8080"   # local edge proxy HTTP
     networks:
-      - default
+      - internal
     logging:
       driver: "json-file"
       options:
         max-size: "10m"
         max-file: "3"
+
+networks:
+  public:
+    driver: bridge
+  internal:
+    internal: true
 
 volumes:
   caddy_data:
