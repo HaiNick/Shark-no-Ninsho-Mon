@@ -1,17 +1,17 @@
 # Core Flask dependencies
-Flask>=3.0.0
-Werkzeug>=3.0.0
+Flask>=3.1.3
+Werkzeug>=3.1.8
 
 # Environment variables
-python-dotenv>=1.0.0
+python-dotenv>=1.2.2
 
 # Rate limiting and security
-Flask-Limiter>=3.5.0
+Flask-Limiter>=4.1.1
 
 # Route management
-tinydb>=4.8.0           # Database for route storage
-validators>=0.22.0      # IP and URL validation
-requests>=2.31.0        # For proxy requests
+tinydb>=4.8.2           # Database for route storage
+validators>=0.35.0      # IP and URL validation
+requests>=2.33.1        # For proxy requests
 
 # Utilities
-python-dateutil>=2.8.2
+python-dateutil>=2.9.0.post0
